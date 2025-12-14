@@ -35,6 +35,7 @@ export default function ClientDashboard() {
   const [resenas, setResenas] = useState<any[]>([]);
   const [negocio, setNegocio] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<any>({}); // Estado para info de depuración
   
   const [activeTab, setActiveTab] = useState<"resumen" | "resenas" | "suscripcion" | "configuracion">("resumen");
 
@@ -56,8 +57,6 @@ export default function ClientDashboard() {
     router.refresh();
   };
 
-  // --- CORRECCIÓN 1: Botón seguro ---
-  // Usamos 'negocio.slug' del estado cargado, NO 'params.slug' de la URL (que puede fallar)
   const handleConnectGoogle = () => {
     if (!negocio?.slug) {
         console.error("No hay slug de negocio cargado");
@@ -70,34 +69,42 @@ export default function ClientDashboard() {
     async function cargarDatos() {
       setLoading(true);
 
-      // 1. Verificar sesión de usuario primero
+      // 1. Verificar sesión de usuario
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
+        console.log("No hay usuario logueado");
         router.push("/login");
         return;
       }
 
-      // 2. Construir la consulta base incluyendo user_id
+      // Guardamos info para debug
+      setDebugInfo(prev => ({ ...prev, userId: user.id, userEmail: user.email }));
+
+      // 2. Construir la consulta
       let query = supabase
         .from("negocios")
         .select("id, nombre, slug, estado_plan, google_calendar_connected, google_email, user_id");
 
-      // --- CORRECCIÓN 2: Lógica Híbrida ---
-      // Si hay slug en la URL, filtramos por slug.
-      // Si NO hay slug (ej: volviendo de Google), filtramos por el dueño (user.id).
+      // Lógica Híbrida: Prioridad al Slug de la URL, fallback al User ID
       if (params.slug) {
         query = query.eq("slug", params.slug);
+        setDebugInfo(prev => ({ ...prev, searchMode: "slug", searchTerm: params.slug }));
       } else {
         query = query.eq("user_id", user.id); 
+        setDebugInfo(prev => ({ ...prev, searchMode: "user_id", searchTerm: user.id }));
       }
 
       const { data: datosNegocio, error } = await query.single();
 
-      if (error || !datosNegocio) {
-        console.error("Error cargando negocio:", error);
+      if (error) {
+        console.error("Error Supabase:", error);
+        setDebugInfo(prev => ({ ...prev, errorSupabase: error.message, errorCode: error.code }));
+      }
+
+      if (!datosNegocio) {
         setLoading(false);
-        return;
+        return; // Se mostrará la pantalla de error/debug
       }
 
       setNegocio(datosNegocio);
@@ -105,11 +112,10 @@ export default function ClientDashboard() {
       // 3. Auto-detectar conexión exitosa de Google
       if (searchParams.get('google_connected') === 'true') {
         setActiveTab("configuracion");
-        // Limpiamos la URL visualmente (opcional)
         router.replace(window.location.pathname, { scroll: false });
       }
 
-      // 4. Cargar Leads usando el ID seguro de la DB
+      // 4. Cargar datos relacionados
       const { data: datosLeads } = await supabase
         .from("leads")
         .select("*")
@@ -117,7 +123,6 @@ export default function ClientDashboard() {
         .order('created_at', { ascending: false });
       if (datosLeads) setLeads(datosLeads);
 
-      // 5. Cargar Reseñas usando el ID seguro de la DB
       const { data: datosResenas } = await supabase
         .from("resenas")
         .select("*")
@@ -140,7 +145,55 @@ export default function ClientDashboard() {
     </div>
   );
   
-  if (!negocio) return <div className="h-screen flex items-center justify-center font-bold">Acceso Denegado / Negocio no encontrado</div>;
+  // --- MODO DEBUG: IMPRIMIR ERROR EN PANTALLA ---
+  if (!negocio) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-6 p-10 font-sans">
+        <AlertTriangle size={64} className="text-amber-500" />
+        <div className="text-center">
+            <h1 className="text-3xl font-bold mb-2">Error de Acceso</h1>
+            <p className="text-zinc-400">No se pudieron cargar los datos del negocio.</p>
+        </div>
+        
+        <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 font-mono text-sm w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-zinc-800">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="ml-2 text-zinc-500">diagnostic.log</span>
+            </div>
+            
+            <div className="space-y-3">
+                <p><span className="text-blue-400">User ID (Auth):</span> <span className="text-zinc-100">{debugInfo.userId || "No detectado"}</span></p>
+                <p><span className="text-blue-400">User Email:</span> <span className="text-zinc-100">{debugInfo.userEmail || "No detectado"}</span></p>
+                <p><span className="text-purple-400">Modo de Búsqueda:</span> <span className="text-zinc-100">{debugInfo.searchMode}</span></p>
+                <p><span className="text-purple-400">Término Buscado:</span> <span className="text-yellow-200">"{debugInfo.searchTerm}"</span></p>
+                
+                <div className="my-4 border-t border-zinc-800 border-dashed"></div>
+                
+                <p className="text-red-400 font-bold">Error Reportado por Supabase:</p>
+                <p className="text-red-300 bg-red-900/20 p-2 rounded border border-red-900/50">
+                    {debugInfo.errorSupabase || "Ninguno (Retorno Null/Vacío)"}
+                </p>
+                <p><span className="text-zinc-500">Código:</span> {debugInfo.errorCode || "N/A"}</p>
+            </div>
+
+            <div className="mt-6 bg-zinc-800/50 p-4 rounded text-zinc-400 text-xs">
+                <strong>Posible Solución:</strong>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>Si el error es "PGRST116" o vacío: El slug no existe o <strong>RLS (Seguridad)</strong> lo está ocultando.</li>
+                    <li>Verifica en Supabase: Tabla <code>negocios</code> {'>'} columna <code>user_id</code> debe coincidir con el ID de arriba.</li>
+                </ul>
+            </div>
+        </div>
+
+        <button 
+          onClick={() => router.push("/login")}
+          className="bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-zinc-200 transition-colors"
+        >
+          Volver al Login
+        </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 flex font-sans text-zinc-900">
