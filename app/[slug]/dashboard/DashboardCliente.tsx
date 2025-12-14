@@ -14,12 +14,11 @@ import {
   ShieldCheck,
   TrendingUp,
   ArrowUpRight,
-  MoreHorizontal,
-  Calendar,
-  Smartphone,
   Settings,
   Link as LinkIcon,
-  Check
+  Check,
+  Calendar,
+  Smartphone
 } from "lucide-react";
 
 // --- CONFIGURACIÓN ---
@@ -35,7 +34,7 @@ export default function ClientDashboard() {
   const [resenas, setResenas] = useState<any[]>([]);
   const [negocio, setNegocio] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<any>({}); // Estado para info de depuración
+  const [debugInfo, setDebugInfo] = useState<any>({}); 
   
   const [activeTab, setActiveTab] = useState<"resumen" | "resenas" | "suscripcion" | "configuracion">("resumen");
 
@@ -78,33 +77,33 @@ export default function ClientDashboard() {
         return;
       }
 
-      // Guardamos info para debug
-      setDebugInfo(prev => ({ ...prev, userId: user.id, userEmail: user.email }));
+      // CORRECCIÓN TS: Tipar 'prev' explícitamente como 'any'
+      setDebugInfo((prev: any) => ({ ...prev, userId: user.id, userEmail: user.email }));
 
       // 2. Construir la consulta
       let query = supabase
         .from("negocios")
         .select("id, nombre, slug, estado_plan, google_calendar_connected, google_email, user_id");
 
-      // Lógica Híbrida: Prioridad al Slug de la URL, fallback al User ID
+      // Lógica Híbrida
       if (params.slug) {
         query = query.eq("slug", params.slug);
-        setDebugInfo(prev => ({ ...prev, searchMode: "slug", searchTerm: params.slug }));
+        setDebugInfo((prev: any) => ({ ...prev, searchMode: "slug", searchTerm: params.slug }));
       } else {
         query = query.eq("user_id", user.id); 
-        setDebugInfo(prev => ({ ...prev, searchMode: "user_id", searchTerm: user.id }));
+        setDebugInfo((prev: any) => ({ ...prev, searchMode: "user_id", searchTerm: user.id }));
       }
 
       const { data: datosNegocio, error } = await query.single();
 
       if (error) {
         console.error("Error Supabase:", error);
-        setDebugInfo(prev => ({ ...prev, errorSupabase: error.message, errorCode: error.code }));
+        setDebugInfo((prev: any) => ({ ...prev, errorSupabase: error.message, errorCode: error.code }));
       }
 
       if (!datosNegocio) {
         setLoading(false);
-        return; // Se mostrará la pantalla de error/debug
+        return; 
       }
 
       setNegocio(datosNegocio);
