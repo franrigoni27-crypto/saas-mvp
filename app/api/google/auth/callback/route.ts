@@ -1,57 +1,25 @@
 import { NextResponse } from "next/server";
-import { google } from "googleapis";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"; // O @supabase/ssr si usas la versión nueva
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase-server";
 
 export async function GET(request: Request) {
-  // 1. Google nos devuelve un 'code' (la llave temporal) y el 'state' (el slug que enviamos antes)
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
-  const slug = searchParams.get("state");
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const slug = requestUrl.searchParams.get("state"); // Google devuelve el 'state' que enviamos (el slug)
 
-  if (!code || !slug) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (code) {
+    // 1. Crear el cliente de Supabase usando la librería nueva (SSR)
+    const supabase = await createClient();
+
+    // 2. Intercambiar el código temporal por una sesión real
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error) {
+      // 3. Si todo salió bien, redirigir al dashboard del slug correcto
+      // Notificamos con ?google_connected=true para mostrar el mensaje de éxito
+      return NextResponse.redirect(`${requestUrl.origin}/${slug}/dashboard?google_connected=true`);
+    }
   }
 
-  // 2. Inicializamos Supabase en el servidor
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-  
-  // 3. Preparamos el cliente de Google otra vez
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.NEXT_PUBLIC_APP_URL + "/api/google/callback"
-  );
-
-  try {
-    // 4. EL INTERCAMBIO: Le damos el código temporal a Google y nos da los Tokens reales
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    // 5. Aprovechamos para pedir el email del usuario (para mostrarlo en el dashboard)
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-
-    // 6. GUARDAR EN DB: Actualizamos la tabla 'negocios' con el refresh_token
-    // IMPORTANTE: El 'refresh_token' es la llave maestra que no caduca.
-    const { error } = await supabase
-      .from("negocios")
-      .update({
-        google_refresh_token: tokens.refresh_token, 
-        google_email: userInfo.data.email,
-        google_calendar_connected: true
-      })
-      .eq("slug", slug);
-
-    if (error) throw error;
-
-    // 7. ÉXITO: Devolvemos al usuario a su dashboard con un parámetro '?google_connected=true'
-    // para que el Frontend sepa que debe abrir la pestaña de configuración.
-    return NextResponse.redirect(new URL(`/${slug}?google_connected=true`, request.url));
-
-  } catch (error) {
-    console.error("Error conectando Google:", error);
-    return NextResponse.redirect(new URL(`/${slug}?error=google_auth_failed`, request.url));
-  }
+  // Si algo falla, volver al login
+  return NextResponse.redirect(`${requestUrl.origin}/login?error=auth`);
 }

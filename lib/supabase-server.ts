@@ -19,7 +19,7 @@ export async function createClient() {
             )
           } catch {
             // El método setAll fue llamado desde un Server Component.
-            // Esto puede ignorarse si tienes middleware refrescando tokens.
+            // Esto puede ignorarse.
           }
         },
       },
