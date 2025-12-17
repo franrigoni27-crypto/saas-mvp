@@ -17,7 +17,11 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // 1. LOGIN BÁSICO (Esto verifica usuario y contraseña)
+    const handleLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    // 1. SOLICITUD A SUPABASE: "¿Es usuario y contraseña real?"
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -29,39 +33,9 @@ export default function LoginPage() {
       return;
     }
 
+    // 2. SI ES REAL -> ADENTRO DIRECTO
+    // Sin preguntar si tiene negocio, sin buscar en tablas, sin trabas.
     router.refresh(); 
-
-    // 2. INTELIGENCIA (Intentamos saber qué eres para ayudarte)
-    
-    // A) ¿Eres Agencia?
-    const { data: agencia } = await supabase
-      .from("agencies")
-      .select("slug")
-      .single();
-
-    if (agencia && agencia.slug) {
-      router.push(`/${agencia.slug}/dashboard`); 
-      return; 
-    }
-
-    // B) ¿Eres Negocio?
-    const { data: negocio } = await supabase
-      .from("negocios")
-      .select("slug")
-      .single();
-
-    if (negocio && negocio.slug) {
-      router.push(`/${negocio.slug}/dashboard`);
-      return;
-    }
-
-    // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
-    
-    // C) ANTES: Si no eras nada, te bloqueaba con Error.
-    // setError("Usuario sin perfil..."); <--- ESTO LO QUITAMOS
-
-    // C) AHORA: Si no tienes perfil, NO IMPORTA. Te dejamos pasar al Home.
-    // Desde ahí tú podrás escribir la URL del dashboard que quieras visitar.
     router.push("/"); 
   };
 
