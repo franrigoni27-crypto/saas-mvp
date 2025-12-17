@@ -17,7 +17,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // 1. Autenticar usuario con Supabase
+    // 1. LOGIN BÁSICO (Esto verifica usuario y contraseña)
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -29,41 +29,42 @@ export default function LoginPage() {
       return;
     }
 
-    // Refrescar para actualizar cookies de sesión
     router.refresh(); 
 
-    // 2. ENRUTAMIENTO INTELIGENTE (Corrección aquí)
+    // 2. INTELIGENCIA (Intentamos saber qué eres para ayudarte)
     
-    // A) Chequear si es AGENCIA (SuperAdmin)
+    // A) ¿Eres Agencia?
     const { data: agencia } = await supabase
       .from("agencies")
-      .select("slug") // IMPORTANTE: Pedir el slug
+      .select("slug")
       .eq("user_id", data.user.id)
       .single();
 
     if (agencia && agencia.slug) {
-      // Redirige a SU propio dashboard dinámico
       router.push(`/${agencia.slug}/dashboard`); 
       return; 
     }
 
-    // B) Chequear si es CLIENTE FINAL (Negocio)
+    // B) ¿Eres Negocio?
     const { data: negocio } = await supabase
       .from("negocios")
-      .select("slug") // IMPORTANTE: Pedir el slug
+      .select("slug")
       .eq("user_id", data.user.id)
       .single();
 
     if (negocio && negocio.slug) {
-      // Redirige a SU propio dashboard dinámico
       router.push(`/${negocio.slug}/dashboard`);
       return;
     }
 
-    // C) Si no tiene perfil asociado (Caso raro, tal vez usuario nuevo sin datos)
-    // Lo mandamos a registrar o mostramos error
-    setError("Usuario sin perfil de Agencia o Negocio asociado.");
-    setLoading(false);
+    // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
+    
+    // C) ANTES: Si no eras nada, te bloqueaba con Error.
+    // setError("Usuario sin perfil..."); <--- ESTO LO QUITAMOS
+
+    // C) AHORA: Si no tienes perfil, NO IMPORTA. Te dejamos pasar al Home.
+    // Desde ahí tú podrás escribir la URL del dashboard que quieras visitar.
+    router.push("/"); 
   };
 
   return (
