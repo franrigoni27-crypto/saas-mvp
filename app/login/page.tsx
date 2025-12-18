@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,34 +13,64 @@ export default function LoginPage() {
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); // Evita que la página se recargue
+    e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // 1. SOLICITUD A SUPABASE: "¿Es usuario y contraseña real?"
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // 1. Validamos contraseña con Supabase (Necesario para seguridad)
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error || !data.user) {
-      setError("Credenciales incorrectas.");
+    if (authError || !data.user || !data.user.email) {
+      setError("Email o contraseña incorrectos.");
       setLoading(false);
       return;
     }
 
-    // 2. SI ES REAL -> ADENTRO DIRECTO
-    // Sin preguntar si tiene negocio, sin buscar en tablas, sin trabas.
-    router.refresh(); 
-    router.push("/"); 
+    // ELIMINAMOS USER_ID DE LA ECUACIÓN.
+    // Usamos puramente el texto del email.
+    const userEmail = data.user.email;
+
+    // 2. Buscamos en NEGOCIOS usando el campo de texto 'email'
+    const { data: negocio } = await supabase
+      .from("negocios")
+      .select("slug")
+      .eq("email", userEmail) // <--- BUSCA TEXTO CONTRA TEXTO
+      .single();
+
+    if (negocio) {
+      router.refresh();
+      router.push(`/${negocio.slug}/dashboard`);
+      return;
+    }
+
+    // 3. Buscamos en AGENCIAS usando el campo de texto 'email'
+    const { data: agencia } = await supabase
+      .from("agencies")
+      .select("slug")
+      .eq("email", userEmail) // <--- BUSCA TEXTO CONTRA TEXTO
+      .single();
+
+    if (agencia) {
+      router.refresh();
+      router.push(`/${agencia.slug}/dashboard`);
+      return;
+    }
+
+    // 4. Si el mail no aparece escrito en ninguna tabla
+    await supabase.auth.signOut();
+    setError(`El email ${userEmail} no tiene ningún negocio asignado en la base de datos.`);
+    setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Acceso a Plataforma</h1>
-          <p className="text-slate-500 text-sm mt-2">Agencias y Clientes</p>
+          <h1 className="text-2xl font-bold text-slate-900">Acceso</h1>
+          <p className="text-slate-500 text-sm mt-2">Sistema de Gestión</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
@@ -65,7 +95,12 @@ export default function LoginPage() {
             />
           </div>
           
-          {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
+          {error && (
+            <div className="p-4 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100 flex items-start gap-3">
+                <AlertCircle size={18} className="shrink-0 mt-0.5"/>
+                <span>{error}</span>
+            </div>
+          )}
 
           <button 
             type="submit" 
@@ -75,16 +110,6 @@ export default function LoginPage() {
             {loading ? <Loader2 className="animate-spin" /> : "Ingresar"}
           </button>
         </form>
-        
-        <div className="mt-6 text-center pt-6 border-t border-slate-100">
-            <p className="text-sm text-slate-500 mb-2">¿Quieres crear tu propia Agencia de Software?</p>
-            <button 
-              onClick={() => router.push("/register")} 
-              className="text-blue-600 font-bold text-sm hover:underline"
-            >
-              Registrar Agencia Nueva
-            </button>
-        </div>
       </div>
     </div>
   );
