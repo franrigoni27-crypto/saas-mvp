@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock } from "lucide-react";
+import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock, Trash2, AlertTriangle } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import WebEditor from "./WebEditor"; 
 
@@ -27,7 +27,7 @@ export default function DashboardAgencia() {
     direccion: ""
   });
 
-  // ESTADO MEJORADO PARA HORARIOS (RANGOS)
+  // ESTADO HORARIOS
   const [scheduleConfig, setScheduleConfig] = useState({
     diaInicio: "Lunes",
     diaFin: "Viernes",
@@ -36,6 +36,8 @@ export default function DashboardAgencia() {
   });
 
   const [creating, setCreating] = useState(false);
+  // Estado para saber cual se esta borrando y mostrar spinner
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingClient, setEditingClient] = useState<any>(null);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function DashboardAgencia() {
     if (!user || !user.email) { router.push("/login"); return; }
 
     const { data: agencyData, error } = await supabase
-        .from("agencies")
+        .from("agencies") // Asegúrate que tu tabla se llame 'agencies' o 'agencias' según tu DB
         .select("*")
         .eq("slug", params.slug)
         .single();
@@ -74,6 +76,35 @@ export default function DashboardAgencia() {
     setLoading(false);
   }
 
+  // --- FUNCIÓN DE ELIMINAR (NUEVA) ---
+  const handleDeleteClient = async (id: number, nombre: string) => {
+    // 1. Confirmación visual simple
+    const confirmado = window.confirm(
+        `⚠️ ¿Estás seguro de eliminar a "${nombre}"?\n\nEsta acción borrará PERMANENTEMENTE:\n- Sus turnos\n- Sus leads\n- Su configuración web\n\nNo se puede deshacer.`
+    );
+
+    if (!confirmado) return;
+
+    setDeletingId(id);
+
+    // 2. Borrar de Supabase
+    // Gracias al "ON DELETE CASCADE" que configuramos en SQL, esto borrará todo lo relacionado
+    const { error } = await supabase
+        .from("negocios")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        alert("Error al eliminar: " + error.message);
+    } else {
+        // 3. Actualizar UI sin recargar
+        setClientes(prev => prev.filter(c => c.id !== id));
+    }
+    
+    setDeletingId(null);
+  };
+  // ------------------------------------
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -98,10 +129,8 @@ export default function DashboardAgencia() {
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-') + "-" + Math.floor(Math.random() * 1000);
 
-        // 2. CONSTRUIR EL STRING DE HORARIO (Lunes a Viernes: 09:00 - 18:00)
         const horarioFinal = `${scheduleConfig.diaInicio} a ${scheduleConfig.diaFin}: ${scheduleConfig.apertura} - ${scheduleConfig.cierre}`;
 
-        // 3. INSERTAR EN LA BASE DE DATOS
         const { error: dbError } = await supabase.from("negocios").insert([{
             email: newClientData.email,
             agency_id: agency.id,
@@ -188,9 +217,20 @@ export default function DashboardAgencia() {
         {/* LISTA DE CLIENTES */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {clientes.map((cliente) => (
-                <div key={cliente.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all p-6 flex flex-col justify-between group">
+                <div key={cliente.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all p-6 flex flex-col justify-between group relative">
+                    
+                    {/* --- BOTÓN DE ELIMINAR (NUEVO) --- */}
+                    <button 
+                        onClick={() => handleDeleteClient(cliente.id, cliente.nombre)}
+                        disabled={deletingId === cliente.id}
+                        className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                        title="Eliminar negocio"
+                    >
+                        {deletingId === cliente.id ? <Loader2 size={18} className="animate-spin text-red-600"/> : <Trash2 size={18} />}
+                    </button>
+
                     <div>
-                        <div className="flex justify-between items-start mb-4">
+                        <div className="flex justify-between items-start mb-4 pr-8">
                             <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md" style={{backgroundColor: cliente.color_principal || '#000'}}>
                                 {cliente.nombre.substring(0,1)}
                             </div>
@@ -198,7 +238,7 @@ export default function DashboardAgencia() {
                                 {cliente.estado_plan}
                             </span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{cliente.nombre}</h3>
+                        <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors pr-6">{cliente.nombre}</h3>
                         <p className="text-sm text-slate-400 mb-2 truncate font-mono bg-slate-50 inline-block px-2 py-0.5 rounded">
                             {cliente.email}
                         </p>
@@ -222,18 +262,16 @@ export default function DashboardAgencia() {
         </div>
       </main>
 
-      {/* MODAL DE CREACIÓN */}
+      {/* MODAL DE CREACIÓN (Mismo código que antes) */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                     <LogOut size={20} className="rotate-45" /> 
                 </button>
-                
                 <h3 className="text-2xl font-bold mb-6 text-slate-900">Nuevo Cliente</h3>
                 
                 <form onSubmit={handleCreateClient} className="space-y-4">
-                    {/* NOMBRE Y EMAIL */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nombre Negocio</label>
@@ -251,7 +289,6 @@ export default function DashboardAgencia() {
 
                     <div className="h-px bg-slate-100 my-2"></div>
                     
-                    {/* DATOS DEL NEGOCIO */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Dirección</label>
                         <div className="relative">
@@ -264,12 +301,9 @@ export default function DashboardAgencia() {
                         </div>
                     </div>
 
-                    {/* SELECTOR AVANZADO DE HORARIOS */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Horario de Atención</label>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-                            
-                            {/* DÍAS: Desde - Hasta */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Desde</label>
@@ -292,8 +326,6 @@ export default function DashboardAgencia() {
                                     </select>
                                 </div>
                             </div>
-                            
-                            {/* HORAS: Apertura - Cierre */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Apertura</label>
@@ -314,10 +346,6 @@ export default function DashboardAgencia() {
                                     />
                                 </div>
                             </div>
-
-                            <p className="text-[10px] text-slate-400 text-center border-t border-slate-200 pt-2 mt-2">
-                                Vista previa: <strong className="text-indigo-600">{scheduleConfig.diaInicio} a {scheduleConfig.diaFin}: {scheduleConfig.apertura} - {scheduleConfig.cierre}</strong>
-                            </p>
                         </div>
                     </div>
 
