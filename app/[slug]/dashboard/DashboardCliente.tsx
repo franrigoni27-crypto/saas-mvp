@@ -273,13 +273,6 @@ export default function ClientDashboard() {
                             icon={<Star className="text-yellow-500" size={20} fill="currentColor"/>}
                             subtext={`Basado en ${totalReviews} reseñas`}
                         />
-                         <StatCard 
-                            title="Tasa de Respuesta" 
-                            value="98%" 
-                            icon={<Smartphone className="text-emerald-600" size={20}/>}
-                            trend="Excelente"
-                            trendPositive={true}
-                        />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
