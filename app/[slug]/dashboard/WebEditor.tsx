@@ -36,7 +36,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
   
   // REFERENCIAS PARA SCROLL
   const sectionsRefs: any = {
-    contact: useRef<HTMLDivElement>(null), // <--- NUEVA SECCIÓN
+    contact: useRef<HTMLDivElement>(null),
     appearance: useRef<HTMLDivElement>(null),
     identity: useRef<HTMLDivElement>(null),
     hero: useRef<HTMLDivElement>(null),
@@ -50,7 +50,8 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
   // ESTADO DE DATOS DEL NEGOCIO (COLUMNAS DB)
   const [dbFields, setDbFields] = useState({
     direccion: negocio.direccion || "",
-    horarios: negocio.horarios || ""
+    horarios: negocio.horarios || "",
+    google_maps_link: negocio.google_maps_link || "" // <--- CAMPO NUEVO EN EL ESTADO
   });
 
   const [saving, setSaving] = useState(false);
@@ -93,7 +94,8 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
     const { error } = await supabase.from("negocios").update({ 
         config_web: config,
         direccion: dbFields.direccion,
-        horarios: dbFields.horarios
+        horarios: dbFields.horarios,
+        google_maps_link: dbFields.google_maps_link // <--- GUARDAMOS EL LINK EN DB
     }).eq("id", negocio.id);
 
     if (error) alert("Error: " + error.message);
@@ -172,7 +174,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-zinc-50/30">
             
-            {/* 1. SECCIÓN CONTACTO (NUEVA) */}
+            {/* 1. SECCIÓN CONTACTO */}
             <div ref={sectionsRefs.contact} className={getSectionClass('contact')}>
                 <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
                     <MapPin size={16} className="text-blue-500" /> Información de Contacto
@@ -186,6 +188,20 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
                         className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                         placeholder="Ej: Av. Principal 123"
                     />
+                </div>
+                {/* INPUT NUEVO PARA GOOGLE MAPS */}
+                <div>
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Link Google Maps</label>
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            value={dbFields.google_maps_link} 
+                            onChange={(e) => updateDbField('google_maps_link', e.target.value)} 
+                            className="w-full p-2 pl-8 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="https://goo.gl/maps/..."
+                        />
+                        <ExternalLink size={14} className="absolute left-2.5 top-2.5 text-zinc-400"/>
+                    </div>
                 </div>
                 <div>
                     <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Horarios</label>

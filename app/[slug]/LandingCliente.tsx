@@ -8,6 +8,7 @@ import { SafeHTML } from "@/components/ui/SafeHTML";
 import { Testimonials } from "@/components/blocks/Testimonials";
 import { Footer } from "@/components/blocks/Footer";
 import type { WebConfig } from "@/types/web-config";
+// IMPORTANTE: Ruta relativa corregida para llegar a 'actions'
 import { getAvailability, createAppointment } from "../actions/google-calendar"; 
 
 export default function LandingCliente({ initialData }: { initialData: any }) {
@@ -17,7 +18,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
 
   const [negocio, setNegocio] = useState<any>(initialData);
   
-  // Muestra el link del evento creado
+  // Muestra el link del evento creado para el botón "Ver en Calendar"
   const [eventLink, setEventLink] = useState(""); 
   
   // MODALES
@@ -77,13 +78,20 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     setBookingData({...bookingData, date, time: ""}); 
     
     setLoadingSlots(true);
-    const res = await getAvailability(negocio.slug, date);
-    setLoadingSlots(false);
     
-    if (res.success) {
-        setBusySlots((res as any).busySlots);
-    } else {
-        console.error(res.error);
+    try {
+        const res = await getAvailability(negocio.slug, date);
+        
+        if (res.success) {
+            // CORRECCIÓN: Usamos (res as any) para evitar error de TypeScript
+            setBusySlots((res as any).busySlots);
+        } else {
+            console.error("Error del servidor:", res.error);
+        }
+    } catch (error) {
+        console.error("Error de conexión:", error);
+    } finally {
+        setLoadingSlots(false);
     }
   };
 
@@ -114,11 +122,13 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     setEnviando(false);
     if (res.success) {
         setIsBookingModalOpen(false);
-        setEventLink((res as any).eventLink); // <--- GUARDAMOS EL LINK
-        setMostrarGracias(true);
-        // Quitamos el timeout para que dé tiempo a ver el link
-        // setTimeout(() => setMostrarGracias(false), 5000); 
         
+        // CORRECCIÓN: Guardamos el link usando (res as any)
+        if ((res as any).eventLink) {
+            setEventLink((res as any).eventLink); 
+        }
+        
+        setMostrarGracias(true);
         // Reset del formulario
         setBookingStep(1);
         setBookingData({ service: "", date: "", time: "", clientName: "", clientPhone: "", clientEmail: "" });
@@ -127,7 +137,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     }
   };
 
-  // --- CONFIG ---
+  // --- CONFIGURACIÓN VISUAL ---
   const handleEditClick = (e: React.MouseEvent, sectionName: string) => {
     if (!isEditorMode) return; 
     e.preventDefault(); e.stopPropagation();
@@ -162,11 +172,26 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   return (
     <div className={`min-h-screen bg-white text-zinc-900 pb-0 overflow-x-hidden ${fontClass}`}>
       
-      {/* TOP BAR */}
+      {/* TOP BAR (CON LOGICA DE GOOGLE MAPS LINK) */}
       {(negocio.direccion || negocio.horarios) && (
         <div onClick={(e) => handleEditClick(e, 'contact')} className={`w-full bg-zinc-900 text-zinc-300 text-xs py-2 px-6 flex flex-col sm:flex-row justify-between items-center gap-2 ${editableClass}`}>
             <div className="flex gap-4">
-                {negocio.direccion && <span className="flex items-center gap-1.5"><MapPin size={12}/> {negocio.direccion}</span>}
+                {negocio.direccion && (
+                   negocio.google_maps_link ? (
+                      <a 
+                        href={negocio.google_maps_link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-1.5 hover:text-white hover:underline transition-all"
+                      >
+                          <MapPin size={12}/> {negocio.direccion}
+                      </a>
+                   ) : (
+                      <span className="flex items-center gap-1.5">
+                          <MapPin size={12}/> {negocio.direccion}
+                      </span>
+                   )
+                )}
                 {negocio.horarios && <span className="flex items-center gap-1.5"><Clock size={12}/> {negocio.horarios}</span>}
             </div>
             {negocio.whatsapp && <div className="hidden sm:block text-zinc-500"><span className="flex items-center gap-1.5"><Phone size={12}/> {negocio.whatsapp}</span></div>}
@@ -179,6 +204,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
             <div onClick={(e) => handleEditClick(e, 'identity')} className={editableClass}>
                 {config.logoUrl ? <img src={config.logoUrl} alt="Logo" className="h-12 object-contain" /> : <span className={`text-xl font-bold tracking-tight ${config.hero.layout === 'full' ? 'text-white drop-shadow-md' : 'text-zinc-900'}`}>{config.hero.titulo}</span>}
             </div>
+            {/* BOTÓN AGENDAR EN NAVBAR */}
             <button onClick={() => setIsBookingModalOpen(true)} className="hidden md:flex bg-white text-zinc-900 px-5 py-2.5 rounded-full font-bold text-sm shadow-lg hover:bg-zinc-100 transition-colors items-center gap-2">
                 <CalendarIcon size={16}/> Agendar Turno
             </button>
@@ -206,8 +232,8 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
 
       {/* SECCIONES */}
       {config.beneficios?.mostrar && (
-          <section className="py-24 px-6 max-w-7xl mx-auto">
-            {config.beneficios?.titulo && <h2 className="text-3xl font-bold text-center mb-16">{config.beneficios.titulo}</h2>}
+          <section className="py-24 px-6 max-w-7xl mx-auto" onClick={(e) => handleEditClick(e, 'beneficios')}>
+            {config.beneficios?.titulo && <h2 className={`text-3xl font-bold text-center mb-16 text-zinc-900 ${editableClass}`}>{config.beneficios.titulo}</h2>}
             <div className="grid md:grid-cols-3 gap-8">
                 {config.beneficios?.items?.map((item:any, i:number) => (
                     <BenefitCard key={i} title={item.titulo} desc={item.desc} icon={<CheckCircle size={28}/>} color={brandColor} radiusClass={cardRadius}/>

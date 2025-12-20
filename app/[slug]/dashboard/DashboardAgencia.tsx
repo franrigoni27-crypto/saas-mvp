@@ -24,7 +24,8 @@ export default function DashboardAgencia() {
     password: "", 
     nombre: "", 
     whatsapp: "",
-    direccion: ""
+    direccion: "",
+    google_maps_link: "" // <--- CAMPO NUEVO AGREGADO
   });
 
   // ESTADO HORARIOS
@@ -76,7 +77,7 @@ export default function DashboardAgencia() {
     setLoading(false);
   }
 
-  // --- FUNCIÓN DE ELIMINAR (NUEVA) ---
+  // --- FUNCIÓN DE ELIMINAR ---
   const handleDeleteClient = async (id: number, nombre: string) => {
     // 1. Confirmación visual simple
     const confirmado = window.confirm(
@@ -103,7 +104,6 @@ export default function DashboardAgencia() {
     
     setDeletingId(null);
   };
-  // ------------------------------------
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +138,7 @@ export default function DashboardAgencia() {
             slug: slug,
             whatsapp: newClientData.whatsapp,
             direccion: newClientData.direccion,
+            google_maps_link: newClientData.google_maps_link, // <--- GUARDAMOS EL LINK EN LA BD
             horarios: horarioFinal,
             mensaje_bienvenida: `Bienvenidos a ${newClientData.nombre}`,
             color_principal: '#000000',
@@ -160,7 +161,7 @@ export default function DashboardAgencia() {
 
         if (!dbError) {
             setShowModal(false);
-            setNewClientData({ email: "", password: "", nombre: "", whatsapp: "", direccion: "" });
+            setNewClientData({ email: "", password: "", nombre: "", whatsapp: "", direccion: "", google_maps_link: "" });
             cargarClientes(agency.id);
         } else {
             alert("Error BD: " + dbError.message);
@@ -219,7 +220,7 @@ export default function DashboardAgencia() {
             {clientes.map((cliente) => (
                 <div key={cliente.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all p-6 flex flex-col justify-between group relative">
                     
-                    {/* --- BOTÓN DE ELIMINAR (NUEVO) --- */}
+                    {/* BOTÓN DE ELIMINAR */}
                     <button 
                         onClick={() => handleDeleteClient(cliente.id, cliente.nombre)}
                         disabled={deletingId === cliente.id}
@@ -262,7 +263,7 @@ export default function DashboardAgencia() {
         </div>
       </main>
 
-      {/* MODAL DE CREACIÓN (Mismo código que antes) */}
+      {/* MODAL DE CREACIÓN */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto">
@@ -289,6 +290,7 @@ export default function DashboardAgencia() {
 
                     <div className="h-px bg-slate-100 my-2"></div>
                     
+                    {/* SECCIÓN DIRECCIÓN Y MAPAS */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Dirección</label>
                         <div className="relative">
@@ -297,6 +299,19 @@ export default function DashboardAgencia() {
                                 placeholder="Av. Siempre Viva 123" 
                                 className="w-full pl-10 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
                                 onChange={e => setNewClientData({...newClientData, direccion: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    {/* NUEVO CAMPO: LINK DE GOOGLE MAPS */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Link de Google Maps</label>
+                        <div className="relative">
+                            <ExternalLink className="absolute left-3 top-3 text-slate-400" size={16} />
+                            <input 
+                                placeholder="https://goo.gl/maps/..." 
+                                className="w-full pl-10 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                onChange={e => setNewClientData({...newClientData, google_maps_link: e.target.value})}
                             />
                         </div>
                     </div>
