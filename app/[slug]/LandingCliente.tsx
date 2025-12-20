@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { Phone, CheckCircle, Clock, MapPin, X, Star, MessageCircle, ArrowRight, ShieldCheck, Loader2, ChevronRight, Heart } from "lucide-react";
+import { Phone, CheckCircle, X, Star, MessageCircle, ArrowRight, ShieldCheck, Loader2, ChevronRight, Heart } from "lucide-react";
 
 // --- IMPORTACIONES DE COMPONENTES ---
 import { SafeHTML } from "@/components/ui/SafeHTML";
@@ -12,7 +12,7 @@ import type { WebConfig } from "@/types/web-config";
 export default function LandingCliente({ initialData }: { initialData: any }) {
   const supabase = createClient();
   
-  // Estado principal con los datos que vienen del servidor (ISR)
+  // Estado principal
   const [negocio, setNegocio] = useState<any>(initialData);
   
   // Estados para Modales
@@ -27,29 +27,47 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   const [mostrarGracias, setMostrarGracias] = useState(false);
 
   // ---------------------------------------------------------
-  // ⚡ ESCUCHA DE CAMBIOS EN TIEMPO REAL (PostMessage)
+  // ⚡ ESCUCHA DE CAMBIOS EN TIEMPO REAL
   // ---------------------------------------------------------
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Si recibimos un mensaje del tipo correcto, actualizamos el estado
       if (event.data?.type === "UPDATE_CONFIG" && event.data?.payload) {
-        console.log("⚡ Configuración recibida en tiempo real:", event.data.payload);
-        
-        // Actualizamos solo la configuración visual, manteniendo el resto de datos
         setNegocio((prev: any) => ({
           ...prev,
           config_web: event.data.payload
         }));
       }
     };
-
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // --- 1. CONFIGURACIÓN ROBUSTA (Mapeo de JSON a TypeScript) ---
+  // --- 1. CONFIGURACIÓN Y APARIENCIA ---
   const rawConfig = negocio?.config_web || {};
   
+  // A. MOTOR DE TEMAS (THEME ENGINE)
+  const appearance = rawConfig.appearance || { font: 'sans', radius: 'medium' };
+
+  // Mapas de clases CSS según la configuración
+  const fontClass = {
+    'sans': 'font-sans',
+    'serif': 'font-serif',
+    'mono': 'font-mono'
+  }[appearance.font as string] || 'font-sans';
+
+  const cardRadius = {
+    'none': 'rounded-none',
+    'medium': 'rounded-2xl',
+    'full': 'rounded-[2.5rem]' 
+  }[appearance.radius as string] || 'rounded-2xl';
+
+  const buttonRadius = {
+    'none': 'rounded-none',
+    'medium': 'rounded-xl',
+    'full': 'rounded-full'
+  }[appearance.radius as string] || 'rounded-xl';
+
+  // B. CONFIGURACIÓN DE CONTENIDO
   const defaultBeneficios = rawConfig.beneficios?.items?.length > 0 
     ? rawConfig.beneficios.items 
     : [
@@ -59,9 +77,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
       ];
 
   const config: WebConfig = {
-    // Mapeo directo de propiedades de la raíz (como el logo)
-    logoUrl: rawConfig.logoUrl || negocio.logo_url, // Prioridad al config, luego a la DB
-
+    logoUrl: rawConfig.logoUrl || negocio.logo_url,
     template: rawConfig.template || "modern",
     colors: {
         primary: negocio?.color_principal || "#000000",
@@ -72,7 +88,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         titulo: negocio?.nombre,
         subtitulo: negocio?.mensaje_bienvenida,
         ctaTexto: "Solicitar Presupuesto",
-        imagenUrl: rawConfig.hero?.imagenUrl, // Importante mapearlo aquí
+        imagenUrl: rawConfig.hero?.imagenUrl,
         ...rawConfig.hero
     },
     beneficios: {
@@ -93,19 +109,16 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     }
   };
 
-  // --- 2. VARIABLES VISUALES CORREGIDAS ---
   const brandColor = config.colors.primary;
-  
   const heroImage = config.hero.imagenUrl || negocio.imagen_url || "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200";
 
-  // --- 3. HANDLERS (Lógica de Negocio) ---
+  // --- HANDLERS ---
   
-  // CORRECCIÓN PRINCIPAL: Ahora es async y espera el insert
   const handleRating = async (stars: number) => {
     setRatingSeleccionado(stars);
     
     if (stars >= 4) {
-      // 1. Guardar en Base de Datos (Esperamos a que termine)
+      // Guardar reseña positiva
       const { error } = await supabase.from("resenas").insert([{
         negocio_id: negocio.id,
         puntuacion: stars,
@@ -113,13 +126,10 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         nombre_cliente: "Anónimo"
       }]);
 
-      if (error) {
-        console.error("Error al guardar reseña:", error);
-      }
+      if (error) console.error("Error al guardar reseña:", error);
 
-      // 2. Redirección o Mensaje
+      // Redirección a Google Maps si existe
       if (negocio.google_maps_link && negocio.google_maps_link.trim() !== "") {
-        // Pequeña pausa para asegurar la experiencia de usuario
         setTimeout(() => {
             window.open(negocio.google_maps_link, '_blank');
         }, 300);
@@ -176,25 +186,25 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     setNombreCliente("");
   };
 
-  // --- 4. RENDERIZADO VISUAL ---
+  // --- RENDER ---
   return (
-    <div className="min-h-screen font-sans bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white pb-0 overflow-x-hidden">
+    // INYECCIÓN DE FUENTE DINÁMICA
+    <div className={`min-h-screen bg-white text-zinc-900 selection:bg-zinc-900 selection:text-white pb-0 overflow-x-hidden ${fontClass}`}>
       
-      {/* --- NUEVO: NAVBAR PARA MOSTRAR LOGO --- */}
+      {/* NAVBAR */}
       <nav className="absolute top-0 left-0 w-full z-30 p-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
             {config.logoUrl ? (
-                <img src={config.logoUrl} alt="Logo Negocio" className="h-12 object-contain" />
+                <img src={config.logoUrl} alt="Logo" className="h-12 object-contain" />
             ) : (
                 <span className="text-xl font-bold tracking-tight">{config.hero.titulo}</span>
             )}
         </div>
       </nav>
 
-      {/* --- HERO SECTION --- */}
+      {/* HERO SECTION */}
       {config.hero.mostrar && (
       <header className="relative w-full overflow-hidden pt-24 pb-24 lg:pt-32 lg:pb-32 px-6">
-        {/* Decoración de fondo */}
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full opacity-10 blur-3xl pointer-events-none" style={{ backgroundColor: brandColor }}></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-zinc-100 blur-3xl pointer-events-none"></div>
 
@@ -208,14 +218,12 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                     Disponible ahora
                 </div>
                 
-                {/* Título */}
                 <SafeHTML 
                   as="h1"
                   html={config.hero.titulo} 
                   className="text-5xl lg:text-7xl font-bold tracking-tight text-zinc-900 leading-[1.1]"
                 />
                 
-                {/* Subtítulo */}
                 <SafeHTML 
                   as="p"
                   html={config.hero.subtitulo} 
@@ -225,7 +233,8 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                 <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2">
                   <button 
                     onClick={() => setIsLeadModalOpen(true)}
-                    className="w-full sm:w-auto group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl text-white font-bold text-lg shadow-xl shadow-zinc-200 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                    // INYECCIÓN DE RADIO DE BOTÓN DINÁMICO
+                    className={`w-full sm:w-auto group relative inline-flex items-center justify-center gap-3 px-8 py-4 text-white font-bold text-lg shadow-xl shadow-zinc-200 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden ${buttonRadius}`}
                     style={{ backgroundColor: brandColor }}
                   >
                     <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
@@ -238,10 +247,10 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                   </div>
                 </div>
             </div>
-            {/* Imagen Hero Dinámica */}
+            
             <div className="relative animate-in fade-in slide-in-from-right-4 duration-1000 delay-200 lg:h-[500px] hidden lg:block">
-                <div className="absolute inset-0 bg-zinc-900/5 rounded-[2.5rem] transform rotate-3 scale-95 translate-x-4"></div>
-                <div className="relative h-full w-full rounded-[2rem] overflow-hidden shadow-2xl border border-zinc-100 group">
+                <div className={`absolute inset-0 bg-zinc-900/5 transform rotate-3 scale-95 translate-x-4 ${cardRadius}`}></div>
+                <div className={`relative h-full w-full overflow-hidden shadow-2xl border border-zinc-100 group ${cardRadius}`}>
                     <img 
                       src={heroImage} 
                       alt={config.hero.titulo} 
@@ -253,7 +262,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
       </header>
       )}
 
-      {/* --- RATING SECTION --- */}
+      {/* RATING SECTION */}
       <div className="w-full bg-zinc-900 text-white py-12 transform -skew-y-2 origin-left relative z-20 mt-[-50px] lg:mt-0 mb-12 overflow-hidden">
           <div className="absolute inset-0 opacity-20" style={{ background: `linear-gradient(45deg, ${brandColor} 0%, transparent 100%)` }}></div>
           <div className="max-w-6xl mx-auto px-6 transform skew-y-2 flex flex-col md:flex-row items-center justify-between gap-6 min-h-[80px]">
@@ -263,7 +272,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                       <h3 className="text-2xl font-bold">¿Ya eres cliente?</h3>
                       <p className="text-zinc-400">Ayúdanos a mejorar con tu opinión.</p>
                   </div>
-                  <div className="flex gap-2 bg-white/10 p-4 rounded-2xl backdrop-blur-sm animate-in fade-in slide-in-from-right-4">
+                  <div className={`flex gap-2 bg-white/10 p-4 backdrop-blur-sm animate-in fade-in slide-in-from-right-4 ${cardRadius}`}>
                     {[1, 2, 3, 4, 5].map((star) => (
                         <button key={star} onClick={() => handleRating(star)} className="group/star transition-transform hover:scale-110 focus:outline-none">
                         <Star size={32} className={`transition-colors duration-200 ${ratingSeleccionado >= star ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-500 group-hover/star:text-yellow-200'}`} />
@@ -285,7 +294,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
           </div>
       </div>
 
-      {/* --- BENEFITS SECTION --- */}
+      {/* BENEFITS SECTION */}
       {config.beneficios.mostrar && (
       <section className="py-24 px-6 max-w-7xl mx-auto">
         {config.beneficios.titulo && (
@@ -299,26 +308,26 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                     title={item.titulo} 
                     desc={item.desc} 
                     color={brandColor}
+                    radiusClass={cardRadius} // Pasamos la clase de radio
                 />
             ))}
         </div>
       </section>
       )}
 
-      {/* --- TESTIMONIOS --- */}
+      {/* TESTIMONIOS */}
       {config.testimonios && config.testimonios.mostrar && (
         <Testimonials data={config.testimonios} primaryColor={brandColor} />
       )}
 
-      {/* --- FOOTER --- */}
+      {/* FOOTER */}
       {config.footer && config.footer.mostrar && (
         <Footer data={config.footer} negocioNombre={negocio.nombre} />
       )}
 
-      {/* --- MODALES --- */}
-      
+      {/* MODAL LEAD */}
       {isLeadModalOpen && (
-        <Modal onClose={() => setIsLeadModalOpen(false)}>
+        <Modal onClose={() => setIsLeadModalOpen(false)} radiusClass={cardRadius}>
             <div className="text-center mb-8 relative">
                 <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-20 h-20 bg-white rounded-full p-2 shadow-xl">
                     <div className="w-full h-full rounded-full flex items-center justify-center text-white" style={{ backgroundColor: brandColor }}>
@@ -329,16 +338,22 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                 <p className="text-zinc-500 text-sm">Déjanos tu nombre para avisarle al técnico.</p>
             </div>
             <form onSubmit={handleConsultar} className="space-y-4">
-              <input autoFocus type="text" required value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} placeholder="Tu Nombre Completo" className="w-full px-5 py-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none transition-all font-medium text-zinc-900"/>
-              <button type="submit" disabled={enviando} className="w-full text-white font-bold py-4 rounded-xl transition-all hover:brightness-110 shadow-lg flex items-center justify-center gap-2" style={{ backgroundColor: brandColor }}>
+              <input autoFocus type="text" required value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} placeholder="Tu Nombre Completo" 
+                className={`w-full px-5 py-4 bg-zinc-50 border border-zinc-200 focus:ring-2 focus:ring-zinc-900 outline-none transition-all font-medium text-zinc-900 ${buttonRadius}`}
+              />
+              <button type="submit" disabled={enviando} 
+                className={`w-full text-white font-bold py-4 transition-all hover:brightness-110 shadow-lg flex items-center justify-center gap-2 ${buttonRadius}`} 
+                style={{ backgroundColor: brandColor }}
+              >
                 {enviando ? <Loader2 className="animate-spin" /> : <>Contactar por WhatsApp <ChevronRight /></>}
               </button>
             </form>
         </Modal>
       )}
 
+      {/* MODAL FEEDBACK */}
       {isFeedbackModalOpen && (
-        <Modal onClose={() => setIsFeedbackModalOpen(false)}>
+        <Modal onClose={() => setIsFeedbackModalOpen(false)} radiusClass={cardRadius}>
             <div className="text-center mb-6">
                 <div className="bg-yellow-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-600">
                     <MessageCircle size={28} />
@@ -347,9 +362,15 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                 <p className="text-zinc-500 text-sm mt-2">¿Qué sucedió con tu experiencia?</p>
             </div>
             <form onSubmit={handleEnviarFeedback} className="space-y-4">
-              <input type="text" value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} placeholder="Tu Nombre (Opcional)" className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none text-zinc-900"/>
-              <textarea required rows={4} value={feedbackComentario} onChange={(e) => setFeedbackComentario(e.target.value)} placeholder="Escribe tu comentario aquí..." className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-zinc-900 outline-none resize-none text-zinc-900"/>
-              <button type="submit" disabled={enviando} className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3.5 rounded-xl transition-colors shadow-lg">
+              <input type="text" value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} placeholder="Tu Nombre (Opcional)" 
+                className={`w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:ring-2 focus:ring-zinc-900 outline-none text-zinc-900 ${buttonRadius}`}
+              />
+              <textarea required rows={4} value={feedbackComentario} onChange={(e) => setFeedbackComentario(e.target.value)} placeholder="Escribe tu comentario aquí..." 
+                className={`w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:ring-2 focus:ring-zinc-900 outline-none resize-none text-zinc-900 ${buttonRadius}`}
+              />
+              <button type="submit" disabled={enviando} 
+                className={`w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3.5 transition-colors shadow-lg ${buttonRadius}`}
+              >
                 {enviando ? "Enviando..." : "Enviar Sugerencia"}
               </button>
             </form>
@@ -361,9 +382,9 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
 
 // --- SUB-COMPONENTES AUXILIARES ---
 
-function BenefitCard({ icon, title, desc, color }: any) {
+function BenefitCard({ icon, title, desc, color, radiusClass }: any) {
     return (
-        <div className="p-8 bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group text-center md:text-left">
+        <div className={`p-8 bg-white border border-zinc-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group text-center md:text-left ${radiusClass}`}>
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 mx-auto md:mx-0 transition-transform group-hover:scale-110 duration-300" style={{ backgroundColor: `${color}10`, color: color }}>
                 {icon}
             </div>
@@ -377,10 +398,10 @@ function BenefitCard({ icon, title, desc, color }: any) {
     )
 }
 
-function Modal({ children, onClose }: any) {
+function Modal({ children, onClose, radiusClass }: any) {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+          <div className={`bg-white shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 ${radiusClass}`}>
             <button onClick={onClose} className="absolute top-4 right-4 p-2 text-zinc-300 hover:text-zinc-600 rounded-full transition-all">
                 <X size={20} />
             </button>

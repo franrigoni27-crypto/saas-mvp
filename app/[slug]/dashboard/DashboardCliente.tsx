@@ -255,7 +255,7 @@ export default function ClientDashboard() {
                             title="Próximos Turnos" 
                             value={turnos.length} 
                             icon={<Calendar className="text-purple-600" size={20}/>}
-                            subtext="Para los próximos 7 días"
+                            subtext="Los proximos 7 turnos agendados"
                         />
                     </div>
 

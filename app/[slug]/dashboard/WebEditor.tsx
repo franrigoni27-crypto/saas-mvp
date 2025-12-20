@@ -1,13 +1,14 @@
 "use client";
 import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { Save, X, LayoutTemplate, Eye, EyeOff, Loader2, RefreshCw, Monitor, Smartphone, ExternalLink } from "lucide-react";
+import { Save, X, LayoutTemplate, Eye, EyeOff, Loader2, RefreshCw, Monitor, Smartphone, ExternalLink, Palette } from "lucide-react";
 // Importamos el componente de subida de imágenes
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
 // Configuración por defecto para evitar errores si está vacío
 const DEFAULT_CONFIG = {
   template: "modern",
+  appearance: { font: 'sans', radius: 'medium' }, // <-- NUEVO: Configuración global
   colors: { primary: "#000000" },
   hero: { 
     titulo: "Tu Título Principal", 
@@ -74,7 +75,6 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
     }
 
     setSaving(false);
-    // setRefreshKey(prev => prev + 1); // Ya no necesitamos forzar recarga porque se ve en tiempo real
     if (onSave) onSave();
   };
 
@@ -87,7 +87,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
       if (section === 'root') {
         newConfig = { ...prev, [field]: value };
       } else {
-        // Caso normal: Campos anidados (ej: hero.titulo)
+        // Caso normal: Campos anidados (ej: hero.titulo, appearance.font)
         newConfig = {
             ...prev,
             [section]: { ...prev[section], [field]: value }
@@ -169,7 +169,48 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-zinc-50/30">
             
-            {/* 0. NUEVA SECCIÓN: IDENTIDAD (LOGO) */}
+            {/* 0. NUEVA SECCIÓN: APARIENCIA GLOBAL */}
+            <div className="space-y-4 bg-white p-5 rounded-xl border border-zinc-200 shadow-sm">
+                <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Palette size={16} className="text-purple-500" /> Apariencia Global
+                </h3>
+                
+                {/* Selector de Fuente */}
+                <div>
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Tipografía</label>
+                    <select 
+                        value={config.appearance?.font || 'sans'} 
+                        onChange={(e) => updateField('appearance', 'font', e.target.value)}
+                        className="w-full p-2 border border-zinc-200 rounded-lg text-sm outline-none bg-zinc-50 focus:bg-white transition-colors"
+                    >
+                        <option value="sans">Moderna (Sans-Serif)</option>
+                        <option value="serif">Elegante (Serif)</option>
+                        <option value="mono">Técnica (Monospace)</option>
+                    </select>
+                </div>
+
+                {/* Selector de Bordes */}
+                <div>
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Estilo de Bordes</label>
+                    <div className="flex gap-2">
+                        {['none', 'medium', 'full'].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => updateField('appearance', 'radius', mode)}
+                                className={`flex-1 py-2 text-xs border rounded-lg transition-all ${
+                                    (config.appearance?.radius || 'medium') === mode 
+                                    ? 'bg-purple-50 border-purple-500 text-purple-700 font-bold' 
+                                    : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'
+                                }`}
+                            >
+                                {mode === 'none' ? 'Cuadrado' : mode === 'medium' ? 'Suave' : 'Redondo'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* 1. IDENTIDAD (LOGO) */}
             <div className="space-y-4 bg-white p-5 rounded-xl border border-zinc-200 shadow-sm">
                 <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
                     <span className="w-2 h-2 rounded-full bg-orange-500"></span> Identidad
@@ -182,7 +223,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
                 />
             </div>
 
-            {/* 1. SECCIÓN HERO */}
+            {/* 2. SECCIÓN HERO */}
             <div className="space-y-4 bg-white p-5 rounded-xl border border-zinc-200 shadow-sm">
                 <div className="flex justify-between items-center pb-3 border-b border-zinc-100">
                     <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2">
@@ -216,7 +257,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
                 )}
             </div>
 
-            {/* 2. SECCIÓN BENEFICIOS */}
+            {/* 3. SECCIÓN BENEFICIOS */}
             <div className="space-y-4 bg-white p-5 rounded-xl border border-zinc-200 shadow-sm">
                 <div className="flex justify-between items-center pb-3 border-b border-zinc-100">
                     <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2">
