@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 // --- CONFIGURACIÓN ---
-// Reemplaza esto con tu link real de MercadoPago si lo tienes
+// Reemplaza esto con tu link real de MercadoPago
 const CONST_LINK_MP = "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=TU_ID_DE_PLAN"; 
 
 export default function ClientDashboard() {
@@ -69,55 +69,48 @@ export default function ClientDashboard() {
     async function cargarDatos() {
       setLoading(true);
 
-      // 1. Verificar sesión de usuario (Cualquiera logueado pasa)
+      // 1. Obtener usuario logueado
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
+      if (!user || !user.email) {
         console.log("No hay usuario logueado");
         router.push("/login");
         return;
       }
 
-      setDebugInfo((prev: any) => ({ ...prev, userId: user.id, userEmail: user.email }));
+      setDebugInfo((prev: any) => ({ ...prev, userEmail: user.email }));
 
-      // 2. Construir la consulta
-      // Seleccionamos los datos. NO filtramos por dueño aquí, solo por slug.
-      let query = supabase
+      // 2. Buscar Negocio por SLUG
+      // CORRECCIÓN: Usamos select("*") para evitar errores de columnas faltantes como 'google_email'
+      // Y filtramos directamente por el slug de la URL.
+      const { data: datosNegocio, error } = await supabase
         .from("negocios")
-        .select("id, nombre, slug, estado_plan, google_calendar_connected, google_email, user_id");
-
-      // Si hay slug en la URL, buscamos por slug (Acceso "Super Admin" / Invitado)
-      if (params.slug) {
-        query = query.eq("slug", params.slug);
-        setDebugInfo((prev: any) => ({ ...prev, searchMode: "slug", searchTerm: params.slug }));
-      } else {
-        // Fallback: Si no hay slug, buscamos el del usuario (solo por comodidad)
-        query = query.eq("user_id", user.id); 
-        setDebugInfo((prev: any) => ({ ...prev, searchMode: "user_id", searchTerm: user.id }));
-      }
-
-      const { data: datosNegocio, error } = await query.single();
+        .select("*")
+        .eq("slug", params.slug)
+        .single();
 
       if (error) {
         console.error("Error Supabase:", error);
         setDebugInfo((prev: any) => ({ ...prev, errorSupabase: error.message, errorCode: error.code }));
       }
 
-      if (!datosNegocio) {
+      // 3. SEGURIDAD "MAIL CONTRA MAIL"
+      // Si el negocio no existe O el email no coincide, bloqueamos el acceso.
+      if (!datosNegocio || datosNegocio.email !== user.email) {
         setLoading(false);
-        // Si no se encuentra el negocio, se mostrará la pantalla de error abajo
+        // Esto dejará que se renderice la pantalla de "Error de Acceso" más abajo
         return; 
       }
 
       setNegocio(datosNegocio);
 
-      // 3. Auto-detectar conexión exitosa de Google
+      // 4. Auto-detectar conexión exitosa de Google
       if (searchParams.get('google_connected') === 'true') {
         setActiveTab("configuracion");
         router.replace(window.location.pathname, { scroll: false });
       }
 
-      // 4. Cargar datos relacionados (Leads y Reseñas)
+      // 5. Cargar datos relacionados (Leads y Reseñas)
       const { data: datosLeads } = await supabase
         .from("leads")
         .select("*")
@@ -147,13 +140,13 @@ export default function ClientDashboard() {
     </div>
   );
   
-  // --- PANTALLA DE DIAGNÓSTICO (Si falla la carga) ---
+  // --- PANTALLA DE ERROR / ACCESO DENEGADO ---
   if (!negocio) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-6 p-10 font-sans">
         <AlertTriangle size={64} className="text-amber-500" />
         <div className="text-center">
-            <h1 className="text-3xl font-bold mb-2">Error de Acceso</h1>
-            <p className="text-zinc-400">No se pudieron cargar los datos del negocio.</p>
+            <h1 className="text-3xl font-bold mb-2">Acceso Denegado</h1>
+            <p className="text-zinc-400">No tienes permisos para ver este negocio o no existe.</p>
         </div>
         
         <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 font-mono text-sm w-full max-w-3xl overflow-hidden shadow-2xl">
@@ -165,26 +158,23 @@ export default function ClientDashboard() {
             </div>
             
             <div className="space-y-3">
-                <p><span className="text-blue-400">User ID (Auth):</span> <span className="text-zinc-100">{debugInfo.userId || "No detectado"}</span></p>
-                <p><span className="text-blue-400">User Email:</span> <span className="text-zinc-100">{debugInfo.userEmail || "No detectado"}</span></p>
-                <p><span className="text-purple-400">Modo de Búsqueda:</span> <span className="text-zinc-100">{debugInfo.searchMode}</span></p>
-                <p><span className="text-purple-400">Término Buscado:</span> <span className="text-yellow-200">"{debugInfo.searchTerm}"</span></p>
+                <p><span className="text-blue-400">Tu Email:</span> <span className="text-zinc-100">{debugInfo.userEmail || "No detectado"}</span></p>
+                <p><span className="text-purple-400">Negocio Buscado:</span> <span className="text-yellow-200">"{params.slug}"</span></p>
                 
                 <div className="my-4 border-t border-zinc-800 border-dashed"></div>
                 
-                <p className="text-red-400 font-bold">Error Reportado por Supabase:</p>
-                <p className="text-red-300 bg-red-900/20 p-2 rounded border border-red-900/50">
-                    {debugInfo.errorSupabase || "Ninguno (Retorno Null/Vacío)"}
-                </p>
-                <p><span className="text-zinc-500">Código:</span> {debugInfo.errorCode || "N/A"}</p>
+                {debugInfo.errorSupabase && (
+                    <>
+                        <p className="text-red-400 font-bold">Error Técnico:</p>
+                        <p className="text-red-300 bg-red-900/20 p-2 rounded border border-red-900/50">
+                            {debugInfo.errorSupabase}
+                        </p>
+                    </>
+                )}
             </div>
 
             <div className="mt-6 bg-zinc-800/50 p-4 rounded text-zinc-400 text-xs">
-                <strong>Solución Probable:</strong>
-                <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>Si el error es "PGRST116" o Vacío: Ejecuta el SQL de "Acceso Total" en Supabase.</li>
-                    <li>Este código NO tiene bloqueos, así que el problema es 100% de la Base de Datos (RLS).</li>
-                </ul>
+                <strong>Nota:</strong> Verifica que hayas iniciado sesión con el email correcto asociado a este negocio.
             </div>
         </div>
 
@@ -192,7 +182,7 @@ export default function ClientDashboard() {
           onClick={() => router.push("/login")}
           className="bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-zinc-200 transition-colors"
         >
-          Volver al Login
+          Ir al Login
         </button>
     </div>
   );
@@ -531,7 +521,8 @@ export default function ClientDashboard() {
                                     {negocio.google_calendar_connected ? (
                                         <div className="mt-4 flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full w-fit font-medium">
                                             <Check size={14} /> 
-                                            Conectado como {negocio.google_email}
+                                            {/* CORRECCIÓN: Aquí mostramos el email unificado */}
+                                            Conectado como {negocio.email}
                                         </div>
                                     ) : (
                                         <div className="mt-4 flex items-center gap-2 text-sm text-zinc-400 bg-zinc-50 px-3 py-1.5 rounded-full w-fit">
