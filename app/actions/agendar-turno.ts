@@ -2,7 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
-
+import { revalidatePath } from "next/cache";
 // Configuración de Supabase Admin (para leer tokens seguros)
 // Asegúrate de que estas variables estén en tu .env.local
 const supabase = createClient(
@@ -90,5 +90,56 @@ export async function agendarTurno(slugNegocio: string, datosCliente: any, fecha
   } catch (error: any) {
     console.error("Error al agendar en Server Action:", error);
     return { success: false, error: error.message || "Error desconocido al agendar" };
+  }
+
+}
+export async function cancelarTurno(turnoId: string) {
+  try {
+    // A. Buscar datos del turno y el token del negocio
+    const { data: turno, error } = await supabase
+      .from("turnos")
+      .select(`
+        google_event_id,
+        negocios (google_refresh_token)
+      `)
+      .eq("id", turnoId)
+      .single();
+
+    if (error || !turno) return { success: false, error: "Turno no encontrado." };
+
+    // @ts-ignore
+    const refreshToken = turno.negocios?.google_refresh_token;
+    
+    // B. Borrar de Google Calendar (si existe)
+    if (refreshToken && turno.google_event_id) {
+      const auth = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID, 
+        process.env.GOOGLE_CLIENT_SECRET
+      );
+      auth.setCredentials({ refresh_token: refreshToken });
+      const calendar = google.calendar({ version: "v3", auth });
+
+      try {
+        await calendar.events.delete({
+          calendarId: "primary",
+          eventId: turno.google_event_id,
+          sendUpdates: "all", // Manda email de cancelación al cliente
+        });
+      } catch (e: any) {
+        // Ignoramos si ya no existe (404/410)
+        if (e.code !== 404 && e.code !== 410) console.error("Error Google:", e.message);
+      }
+    }
+
+    // C. Borrar de Supabase
+    const { error: dbError } = await supabase.from("turnos").delete().eq("id", turnoId);
+    if (dbError) return { success: false, error: dbError.message };
+
+    // D. Actualizar pantalla automáticamente
+    revalidatePath("/dashboard"); 
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }

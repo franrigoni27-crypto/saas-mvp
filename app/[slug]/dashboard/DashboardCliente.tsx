@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -15,7 +16,7 @@ import {
   Settings,
   Link as LinkIcon,
   Check,
-  Calendar as CalendarIcon, // Renombramos para evitar conflicto
+  Calendar as CalendarIcon, 
   UserCheck,
   Search,
   Clock,
@@ -24,6 +25,9 @@ import {
   ChevronRight,
   AlertCircle
 } from "lucide-react";
+// --- IMPORTACIÓN NUEVA PARA ELIMINAR ---
+// Asegúrate de que el archivo BotonCancelar.tsx exista en la carpeta components
+import { BotonCancelar } from "@/components/BotonCancelar"; 
 
 // --- CONFIGURACIÓN ---
 const CONST_LINK_MP = "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=TU_ID_DE_PLAN"; 
@@ -43,7 +47,6 @@ export default function ClientDashboard() {
   
   const [loading, setLoading] = useState(true);
   
-  // AGREGAMOS 'calendario' A LAS PESTAÑAS
   const [activeTab, setActiveTab] = useState<"resumen" | "calendario" | "clientes" | "resenas" | "suscripcion" | "configuracion">("resumen");
 
   // CÁLCULOS ESTADÍSTICOS
@@ -93,9 +96,9 @@ export default function ClientDashboard() {
 
       setNegocio(datosNegocio);
 
-      // Si viene redirigido de Google, vamos directo al Calendario o Config
+      // Si viene redirigido de Google, vamos directo al Calendario
       if (searchParams.get('google_connected') === 'true') {
-        setActiveTab("calendario"); // <--- CAMBIO: Llevar al calendario al conectar
+        setActiveTab("calendario"); 
         router.replace(window.location.pathname, { scroll: false });
       }
 
@@ -115,12 +118,12 @@ export default function ClientDashboard() {
         .order('created_at', { ascending: false });
       if (datosResenas) setResenas(datosResenas);
 
-      // 3. CARGAR TODOS LOS TURNOS FUTUROS Y RECIENTES
+      // 3. CARGAR TURNOS
       const { data: datosTurnos } = await supabase
         .from("turnos")
         .select("*")
         .eq("negocio_id", datosNegocio.id)
-        .gte("fecha_inicio", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Traemos desde hace 1 semana
+        .gte("fecha_inicio", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) 
         .order('fecha_inicio', { ascending: true });
         
       if (datosTurnos) setTurnos(datosTurnos);
@@ -169,7 +172,6 @@ export default function ClientDashboard() {
           <nav className="space-y-1">
             <SidebarItem icon={<LayoutDashboard size={18} />} label="General" active={activeTab === "resumen"} onClick={() => setActiveTab("resumen")} />
             
-            {/* NUEVA PESTAÑA CALENDARIO */}
             <SidebarItem 
                 icon={<CalendarIcon size={18} />} 
                 label="Calendario" 
@@ -225,11 +227,10 @@ export default function ClientDashboard() {
                             subtext="Sincronizados con Google Calendar"
                         />
                     </div>
-                    {/* ... (Resto del resumen igual) ... */}
                 </div>
             )}
 
-            {/* --- NUEVA TAB: CALENDARIO --- */}
+            {/* --- TAB: CALENDARIO --- */}
             {activeTab === "calendario" && (
                 <CalendarTab 
                     negocio={negocio} 
@@ -238,7 +239,7 @@ export default function ClientDashboard() {
                 />
             )}
 
-            {/* --- OTRAS TABS (CLIENTES, RESEÑAS, ETC) --- */}
+            {/* --- OTRAS TABS --- */}
             {activeTab === "clientes" && <div className="animate-in fade-in"><h1 className="text-2xl font-bold mb-4">Base de Clientes</h1><ClientesTable leads={leads} /></div>}
             {activeTab === "resenas" && <ReviewsTab resenas={resenas} />}
             {activeTab === "suscripcion" && <SubscriptionTab negocio={negocio} CONST_LINK_MP={CONST_LINK_MP} />}
@@ -251,13 +252,12 @@ export default function ClientDashboard() {
 }
 
 // ----------------------------------------------------------------------
-// --- COMPONENTES AUXILIARES Y PESTAÑAS (Nuevo diseño limpio) ---
+// --- COMPONENTES AUXILIARES Y PESTAÑAS ---
 // ----------------------------------------------------------------------
 
 function CalendarTab({ negocio, turnos, handleConnectGoogle }: any) {
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    // Si NO está conectado, mostramos pantalla de conexión
     if (!negocio.google_calendar_connected) {
         return (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 h-[600px] flex flex-col items-center justify-center bg-white rounded-2xl border border-dashed border-zinc-300 text-center p-8">
@@ -347,7 +347,6 @@ function CalendarTab({ negocio, turnos, handleConnectGoogle }: any) {
                 {/* CUERPO DEL CALENDARIO */}
                 <div className="flex-1 grid grid-cols-7 overflow-y-auto min-h-[500px]">
                     {days.map((day, i) => {
-                        // Filtramos los turnos de este día
                         const dayTurnos = turnos.filter((t: any) => {
                             const tDate = new Date(t.fecha_inicio);
                             return tDate.getDate() === day.getDate() && 
@@ -365,12 +364,22 @@ function CalendarTab({ negocio, turnos, handleConnectGoogle }: any) {
                                     </div>
                                 )}
                                 {dayTurnos.map((t: any) => (
-                                    <div key={t.id} className="bg-white p-3 rounded-lg border border-zinc-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group border-l-4 border-l-indigo-500">
-                                        <p className="text-xs font-bold text-zinc-400 mb-1 flex items-center gap-1">
-                                            <Clock size={10}/> 
-                                            {new Date(t.fecha_inicio).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}
-                                        </p>
-                                        <p className="text-sm font-bold text-zinc-900 truncate">{t.cliente_nombre}</p>
+                                    <div key={t.id} className="bg-white p-3 rounded-lg border border-zinc-200 shadow-sm relative group border-l-4 border-l-indigo-500">
+
+                                        {/* CABECERA: Hora y Botón Borrar */}
+                                        <div className="flex justify-between items-start mb-1">
+                                            <p className="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                                                <Clock size={10}/> 
+                                                {new Date(t.fecha_inicio).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}
+                                            </p>
+
+                                            {/* AQUÍ PEGAS EL BOTÓN */}
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <BotonCancelar idTurno={t.id} />
+                                            </div>
+                                        </div>
+
+                                        <p className="text-sm font-bold text-zinc-900 truncate pr-4">{t.cliente_nombre}</p>
                                         <p className="text-xs text-zinc-500 truncate">{t.servicio || "Reunión"}</p>
                                     </div>
                                 ))}
