@@ -5,6 +5,8 @@ import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPi
 import { useRouter, useParams } from "next/navigation";
 import WebEditor from "./WebEditor"; 
 
+const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
 export default function DashboardAgencia() {
   const supabase = createClient();
   const router = useRouter();
@@ -25,9 +27,10 @@ export default function DashboardAgencia() {
     direccion: ""
   });
 
-  // ESTADO PARA GENERADOR DE HORARIOS (Mejor que escribir texto plano)
+  // ESTADO MEJORADO PARA HORARIOS (RANGOS)
   const [scheduleConfig, setScheduleConfig] = useState({
-    dias: "Lunes a Viernes",
+    diaInicio: "Lunes",
+    diaFin: "Viernes",
     apertura: "09:00",
     cierre: "18:00"
   });
@@ -95,9 +98,8 @@ export default function DashboardAgencia() {
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-') + "-" + Math.floor(Math.random() * 1000);
 
-        // 2. CONSTRUIR EL STRING DE HORARIO
-        // Combina los selectores en un solo texto limpio: "Lunes a Viernes: 09:00 - 18:00"
-        const horarioFinal = `${scheduleConfig.dias}: ${scheduleConfig.apertura} - ${scheduleConfig.cierre}`;
+        // 2. CONSTRUIR EL STRING DE HORARIO (Lunes a Viernes: 09:00 - 18:00)
+        const horarioFinal = `${scheduleConfig.diaInicio} a ${scheduleConfig.diaFin}: ${scheduleConfig.apertura} - ${scheduleConfig.cierre}`;
 
         // 3. INSERTAR EN LA BASE DE DATOS
         const { error: dbError } = await supabase.from("negocios").insert([{
@@ -106,8 +108,8 @@ export default function DashboardAgencia() {
             nombre: newClientData.nombre,
             slug: slug,
             whatsapp: newClientData.whatsapp,
-            direccion: newClientData.direccion, // <--- NUEVO CAMPO
-            horarios: horarioFinal,             // <--- NUEVO CAMPO
+            direccion: newClientData.direccion,
+            horarios: horarioFinal,
             mensaje_bienvenida: `Bienvenidos a ${newClientData.nombre}`,
             color_principal: '#000000',
             estado_plan: 'activo', 
@@ -129,7 +131,6 @@ export default function DashboardAgencia() {
 
         if (!dbError) {
             setShowModal(false);
-            // Resetear formulario
             setNewClientData({ email: "", password: "", nombre: "", whatsapp: "", direccion: "" });
             cargarClientes(agency.id);
         } else {
@@ -202,7 +203,6 @@ export default function DashboardAgencia() {
                             {cliente.email}
                         </p>
                         
-                        {/* DATOS EXTRA VISIBLES EN TARJETA */}
                         <div className="text-xs text-slate-500 space-y-1 mb-4 border-t border-slate-100 pt-2">
                            {cliente.horarios && <p className="flex items-center gap-1"><Clock size={12}/> {cliente.horarios}</p>}
                            {cliente.direccion && <p className="flex items-center gap-1"><MapPin size={12}/> {cliente.direccion}</p>}
@@ -251,7 +251,7 @@ export default function DashboardAgencia() {
 
                     <div className="h-px bg-slate-100 my-2"></div>
                     
-                    {/* DATOS DEL NEGOCIO (NUEVOS) */}
+                    {/* DATOS DEL NEGOCIO */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Dirección</label>
                         <div className="relative">
@@ -264,40 +264,59 @@ export default function DashboardAgencia() {
                         </div>
                     </div>
 
-                    {/* SELECTOR INTELIGENTE DE HORARIOS */}
+                    {/* SELECTOR AVANZADO DE HORARIOS */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Horario de Atención</label>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
-                            {/* Días */}
-                            <select 
-                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
-                                value={scheduleConfig.dias}
-                                onChange={e => setScheduleConfig({...scheduleConfig, dias: e.target.value})}
-                            >
-                                <option>Lunes a Viernes</option>
-                                <option>Lunes a Sábado</option>
-                                <option>Lunes a Domingo</option>
-                                <option>Todos los días</option>
-                            </select>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                             
-                            {/* Horas (Apertura - Cierre) */}
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="time" 
-                                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
-                                    value={scheduleConfig.apertura}
-                                    onChange={e => setScheduleConfig({...scheduleConfig, apertura: e.target.value})}
-                                />
-                                <span className="text-slate-400 text-xs font-bold">A</span>
-                                <input 
-                                    type="time" 
-                                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
-                                    value={scheduleConfig.cierre}
-                                    onChange={e => setScheduleConfig({...scheduleConfig, cierre: e.target.value})}
-                                />
+                            {/* DÍAS: Desde - Hasta */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Desde</label>
+                                    <select 
+                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                        value={scheduleConfig.diaInicio}
+                                        onChange={e => setScheduleConfig({...scheduleConfig, diaInicio: e.target.value})}
+                                    >
+                                        {DIAS_SEMANA.map(dia => <option key={dia} value={dia}>{dia}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Hasta</label>
+                                    <select 
+                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                        value={scheduleConfig.diaFin}
+                                        onChange={e => setScheduleConfig({...scheduleConfig, diaFin: e.target.value})}
+                                    >
+                                        {DIAS_SEMANA.map(dia => <option key={dia} value={dia}>{dia}</option>)}
+                                    </select>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-slate-400 text-center">
-                                Se guardará como: <strong>{scheduleConfig.dias}: {scheduleConfig.apertura} - {scheduleConfig.cierre}</strong>
+                            
+                            {/* HORAS: Apertura - Cierre */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Apertura</label>
+                                    <input 
+                                        type="time" 
+                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                        value={scheduleConfig.apertura}
+                                        onChange={e => setScheduleConfig({...scheduleConfig, apertura: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-400 font-bold mb-1 block uppercase">Cierre</label>
+                                    <input 
+                                        type="time" 
+                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                        value={scheduleConfig.cierre}
+                                        onChange={e => setScheduleConfig({...scheduleConfig, cierre: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 text-center border-t border-slate-200 pt-2 mt-2">
+                                Vista previa: <strong className="text-indigo-600">{scheduleConfig.diaInicio} a {scheduleConfig.diaFin}: {scheduleConfig.apertura} - {scheduleConfig.cierre}</strong>
                             </p>
                         </div>
                     </div>
