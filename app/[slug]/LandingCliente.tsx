@@ -8,7 +8,7 @@ import { SafeHTML } from "@/components/ui/SafeHTML";
 import { Testimonials } from "@/components/blocks/Testimonials";
 import { Footer } from "@/components/blocks/Footer";
 import type { WebConfig } from "@/types/web-config";
-import { getAvailability, createAppointment } from "../actions/google-calendar"; // <--- IMPORTAMOS LAS ACTIONS
+import { getAvailability, createAppointment } from "../actions/google-calendar"; 
 
 export default function LandingCliente({ initialData }: { initialData: any }) {
   const supabase = createClient();
@@ -18,11 +18,11 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   const [negocio, setNegocio] = useState<any>(initialData);
   
   // Muestra el link del evento creado
-  const [eventLink, setEventLink] = useState(""); // <--- NUEVO
+  const [eventLink, setEventLink] = useState(""); 
   
   // MODALES
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false); // Presupuesto rápido
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false); // <--- NUEVO: Modal de Turnos
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false); // Modal de Turnos
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   // ESTADO DE AGENDAMIENTO (WIZARD)
@@ -39,7 +39,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   
   // ESTADOS GENERALES
-  const [nombreCliente, setNombreCliente] = useState(""); // Para el modal simple
+  const [nombreCliente, setNombreCliente] = useState(""); 
   const [feedbackComentario, setFeedbackComentario] = useState("");
   const [ratingSeleccionado, setRatingSeleccionado] = useState(0);
   const [enviando, setEnviando] = useState(false);
@@ -59,13 +59,9 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   }, []);
 
   // --- LOGICA DE HORARIOS ---
-  // Parsea el string "Lunes a Viernes: 09:00 - 18:00" para obtener límites
   const getBusinessHours = () => {
-    if (!negocio.horarios) return { start: 9, end: 18 }; // Default
+    if (!negocio.horarios) return { start: 9, end: 18 }; 
     try {
-        const parts = negocio.horarios.split(':'); // "Lunes a Viernes" : " 09" : "00 - 18" : "00"
-        // Esta es una heurística simple, idealmente guardaríamos start/end como columnas separadas
-        // Buscamos patrones de hora HH:mm
         const times = negocio.horarios.match(/(\d{2}):(\d{2})/g);
         if (times && times.length >= 2) {
             const startHour = parseInt(times[0].split(':')[0]);
@@ -73,20 +69,18 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
             return { start: startHour, end: endHour };
         }
     } catch(e) {}
-    return { start: 9, end: 18 }; // Fallback
+    return { start: 9, end: 18 }; 
   };
 
   const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const date = e.target.value;
-    setBookingData({...bookingData, date, time: ""}); // Reset hora al cambiar fecha
+    setBookingData({...bookingData, date, time: ""}); 
     
-    // Consultar disponibilidad en Google Calendar
     setLoadingSlots(true);
     const res = await getAvailability(negocio.slug, date);
     setLoadingSlots(false);
     
     if (res.success) {
-        // Agregamos "as any" para decirle a TypeScript: "Confía en mí, esto existe"
         setBusySlots((res as any).busySlots);
     } else {
         console.error(res.error);
@@ -97,15 +91,12 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     const { start, end } = getBusinessHours();
     const slots = [];
     for (let hour = start; hour < end; hour++) {
-        // Generamos slots cada 1 hora (ej: 09:00, 10:00...)
         const timeString = `${hour.toString().padStart(2, '0')}:00`;
-        
-        // Verificar si choca con algún busySlot de Google
         const slotDate = new Date(`${bookingData.date}T${timeString}:00`);
+        
         const isBusy = busySlots.some((busy: any) => {
             const busyStart = new Date(busy.start);
             const busyEnd = new Date(busy.end);
-            // Si el slot empieza dentro de un evento ocupado
             return slotDate >= busyStart && slotDate < busyEnd;
         });
 
@@ -123,9 +114,12 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     setEnviando(false);
     if (res.success) {
         setIsBookingModalOpen(false);
+        setEventLink((res as any).eventLink); // <--- GUARDAMOS EL LINK
         setMostrarGracias(true);
-        setTimeout(() => setMostrarGracias(false), 5000);
-        // Reset
+        // Quitamos el timeout para que dé tiempo a ver el link
+        // setTimeout(() => setMostrarGracias(false), 5000); 
+        
+        // Reset del formulario
         setBookingStep(1);
         setBookingData({ service: "", date: "", time: "", clientName: "", clientPhone: "", clientEmail: "" });
     } else {
@@ -158,7 +152,6 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   const brandColor = config.colors.primary;
   const heroImage = config.hero.imagenUrl || negocio.imagen_url || "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1200";
 
-  // Handlers simples existentes
   const handleConsultar = async (e: React.FormEvent) => {
     e.preventDefault(); setEnviando(true);
     await supabase.from("leads").insert([{ negocio_id: negocio.id, nombre_cliente: nombreCliente, telefono_cliente: "No especificado", estado: "nuevo" }]);
@@ -180,13 +173,12 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         </div>
       )}
 
-      {/* NAVBAR & HERO (CON BOTÓN DE AGENDAR) */}
+      {/* NAVBAR & HERO */}
       <nav className="absolute top-10 left-0 w-full z-30 p-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div onClick={(e) => handleEditClick(e, 'identity')} className={editableClass}>
                 {config.logoUrl ? <img src={config.logoUrl} alt="Logo" className="h-12 object-contain" /> : <span className={`text-xl font-bold tracking-tight ${config.hero.layout === 'full' ? 'text-white drop-shadow-md' : 'text-zinc-900'}`}>{config.hero.titulo}</span>}
             </div>
-            {/* BOTÓN AGENDAR EN NAVBAR (Opcional) */}
             <button onClick={() => setIsBookingModalOpen(true)} className="hidden md:flex bg-white text-zinc-900 px-5 py-2.5 rounded-full font-bold text-sm shadow-lg hover:bg-zinc-100 transition-colors items-center gap-2">
                 <CalendarIcon size={16}/> Agendar Turno
             </button>
@@ -194,32 +186,39 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
       </nav>
 
       <header className="relative w-full overflow-hidden pt-32 pb-32 px-6">
-         {/* Fondo decorativo */}
          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full opacity-10 blur-3xl pointer-events-none" style={{ backgroundColor: brandColor }}></div>
          <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center relative z-10">
             <div className="space-y-8 text-center lg:text-left">
                 <SafeHTML as="h1" html={config.hero.titulo} className="text-5xl lg:text-7xl font-bold tracking-tight text-zinc-900 leading-[1.1]" />
                 <SafeHTML as="p" html={config.hero.subtitulo} className="text-xl text-zinc-500 leading-relaxed max-w-lg mx-auto lg:mx-0" />
                 <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2">
-                    {/* BOTÓN PRINCIPAL: AGENDAR */}
                     <button onClick={() => setIsBookingModalOpen(true)} className={`w-full sm:w-auto group relative inline-flex items-center justify-center gap-3 px-8 py-4 text-white font-bold text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden ${buttonRadius}`} style={{ backgroundColor: brandColor }}>
                         <span className="relative flex items-center gap-2"><CalendarIcon size={20}/> Solicitar Turno</span>
                     </button>
                     <button onClick={() => setIsLeadModalOpen(true)} className="text-sm font-bold text-zinc-500 hover:text-zinc-900 px-4 py-2">Consultar Presupuesto</button>
                 </div>
             </div>
-            {/* Imagen Hero */}
             <div className={`relative hidden lg:block h-[500px] ${cardRadius} overflow-hidden shadow-2xl`}>
-                 <img src={heroImage} className="w-full h-full object-cover"/>
+                 <img src={heroImage} className="w-full h-full object-cover" alt="Hero"/>
             </div>
          </div>
       </header>
 
-      {/* ... RESTO DE SECCIONES (Beneficios, Footer, etc.) ... */}
-      {config.beneficios.mostrar && <section className="py-24 px-6 max-w-7xl mx-auto"><h2 className="text-3xl font-bold text-center mb-16">{config.beneficios.titulo}</h2><div className="grid md:grid-cols-3 gap-8">{config.beneficios.items?.map((item:any, i:number) => <BenefitCard key={i} title={item.titulo} desc={item.desc} icon={<CheckCircle size={28}/>} color={brandColor} radiusClass={cardRadius}/>)}</div></section>}
+      {/* SECCIONES */}
+      {config.beneficios?.mostrar && (
+          <section className="py-24 px-6 max-w-7xl mx-auto">
+            {config.beneficios?.titulo && <h2 className="text-3xl font-bold text-center mb-16">{config.beneficios.titulo}</h2>}
+            <div className="grid md:grid-cols-3 gap-8">
+                {config.beneficios?.items?.map((item:any, i:number) => (
+                    <BenefitCard key={i} title={item.titulo} desc={item.desc} icon={<CheckCircle size={28}/>} color={brandColor} radiusClass={cardRadius}/>
+                ))}
+            </div>
+          </section>
+      )}
+      
       {config.footer?.mostrar && <Footer data={config.footer} negocioNombre={negocio.nombre} />}
 
-      {/* --- MODAL DE AGENDAMIENTO (NUEVO) --- */}
+      {/* --- MODAL DE AGENDAMIENTO --- */}
       {isBookingModalOpen && (
         <Modal onClose={() => setIsBookingModalOpen(false)} radiusClass={cardRadius}>
             <div className="mb-6">
@@ -227,7 +226,6 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                     <CalendarIcon className="text-blue-600"/> Agendar Turno
                 </h3>
                 <p className="text-zinc-500 text-sm">Paso {bookingStep} de 3</p>
-                {/* Progress Bar */}
                 <div className="h-1 bg-zinc-100 rounded-full mt-2 w-full overflow-hidden">
                     <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${(bookingStep / 3) * 100}%` }}></div>
                 </div>
@@ -337,7 +335,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         </Modal>
       )}
 
-      {/* MODAL DE ÉXITO */}
+      {/* MODAL DE ÉXITO (CON BOTÓN DE CALENDARIO) */}
       {mostrarGracias && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-md animate-in fade-in">
             <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm animate-in zoom-in-95">
@@ -345,15 +343,26 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                     <CheckCircle size={32} />
                 </div>
                 <h3 className="text-2xl font-bold text-zinc-900 mb-2">¡Turno Confirmado!</h3>
-                <p className="text-zinc-500">Te esperamos. Hemos enviado un correo con los detalles.</p>
-                <button onClick={() => setMostrarGracias(false)} className="mt-6 text-sm font-bold text-zinc-400 hover:text-zinc-600">Cerrar</button>
+                <p className="text-zinc-500 mb-6">El turno se ha agendado correctamente.</p>
+                
+                {/* BOTÓN MÁGICO PARA VER EL EVENTO */}
+                {eventLink && (
+                    <a 
+                      href={eventLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl mb-3 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                    >
+                      Ver en Google Calendar <CalendarIcon size={18}/>
+                    </a>
+                )}
+
+                <button onClick={() => setMostrarGracias(false)} className="mt-2 text-sm font-bold text-zinc-400 hover:text-zinc-600">Cerrar</button>
             </div>
         </div>
       )}
 
-      {/* OTROS MODALES (Presupuesto, Feedback - Se mantienen igual) */}
-      {isLeadModalOpen && (/* ... código anterior ... */ <Modal onClose={() => setIsLeadModalOpen(false)} radiusClass={cardRadius}><p>Formulario Presupuesto...</p></Modal>)} 
-      {/* (Para abreviar, asegurate de mantener el código de isLeadModalOpen y isFeedbackModalOpen original si lo usas) */}
+      {isLeadModalOpen && (<Modal onClose={() => setIsLeadModalOpen(false)} radiusClass={cardRadius}><p>Formulario Presupuesto...</p></Modal>)} 
     </div>
   );
 }
