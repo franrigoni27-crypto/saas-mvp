@@ -1,38 +1,27 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { createServerClient, type CookieOptions } from "@supabase/ssr"; // <--- CAMBIO AQUÍ
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const slug = searchParams.get("state");
+  const slug = searchParams.get("state"); // Recuperamos el slug que enviamos en el "state"
+  const error = searchParams.get("error");
 
-  if (!code || !slug) return NextResponse.redirect(new URL("/", request.url));
+  // 1. SI GOOGLE DEVUELVE ERROR (El usuario canceló)
+  if (error) {
+     return NextResponse.redirect(new URL(`/${slug}?error=google_denied`, request.url));
+  }
 
-  const cookieStore = await cookies(); // <--- En Next 16 esto lleva await
+  // 2. VALIDACIÓN BÁSICA
+  if (!code || !slug) {
+     return NextResponse.json({ error: "Faltan parámetros code o slug" }, { status: 400 });
+  }
 
-  // Crear cliente de Supabase compatible con Next 16
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
-        },
-      },
-    }
-  );
-
-  // ⚠️ TU URL REAL DE VERCEL (Hardcoded para evitar errores)
-  const DOMINIO_REAL = "https://TU-PROYECTO.vercel.app";
+  // 3. HARDCODE: ESTA URL DEBE SER IDÉNTICA A LA DEL ARCHIVO AUTH
+  const DOMINIO_REAL = "https://unitpro-system.vercel.app";
   const redirectUri = `${DOMINIO_REAL}/api/google/callback`;
 
   const oauth2Client = new google.auth.OAuth2(
@@ -42,24 +31,45 @@ export async function GET(request: Request) {
   );
 
   try {
+    // 4. CANJEAR EL CÓDIGO POR TOKENS (Aquí solía fallar si la URL no coincidía)
     const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
+    
+    // Debug en logs de Vercel
+    console.log("Tokens recibidos de Google:", tokens ? "SÍ" : "NO");
+    if (tokens.refresh_token) console.log("Refresh Token recibido: SÍ (¡Éxito!)");
 
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
+    // 5. GUARDAR EN SUPABASE
+    // Usamos un cliente directo para asegurar que funcione en el servidor
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
-    await supabase
+    // Actualizamos el negocio usando el SLUG
+    const { error: dbError } = await supabase
       .from("negocios")
       .update({
-        google_refresh_token: tokens.refresh_token,
-        google_email: userInfo.data.email,
-        google_calendar_connected: true
+        google_calendar_connected: true,
+        // Guardamos el refresh_token (CRÍTICO para crear eventos en el futuro sin pedir permiso)
+        // Nota: Google solo lo envía si prompt="consent", que ya lo pusimos en auth.
+        ...(tokens.refresh_token && { google_refresh_token: tokens.refresh_token }),
+        // El access token caduca rápido, pero lo guardamos por si acaso
+        google_access_token: tokens.access_token,
       })
       .eq("slug", slug);
 
+    if (dbError) {
+        console.error("Error guardando en Supabase:", dbError);
+        throw dbError;
+    }
+
+    // 6. REDIRIGIR AL DASHBOARD CON ÉXITO
+    // Agregamos google_connected=true para que el frontend pueda mostrar un mensaje de éxito o recargar
     return NextResponse.redirect(new URL(`/${slug}?google_connected=true`, request.url));
-  } catch (error) {
-    console.error("Error Auth:", error);
+
+  } catch (err: any) {
+    console.error("❌ ERROR EN CALLBACK:", err.message);
+    // Redirigimos con el error para que el usuario sepa que falló
     return NextResponse.redirect(new URL(`/${slug}?error=auth_failed`, request.url));
   }
 }
