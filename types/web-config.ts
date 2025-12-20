@@ -9,6 +9,11 @@ export interface HeroSection {
   subtitulo: string;
   ctaTexto: string;
   imagenUrl?: string; // URL de la imagen de fondo (desde Supabase Storage)
+  
+  // --- NUEVOS CAMPOS (Solución al error) ---
+  layout?: 'split' | 'full';  // Define si es dividido o pantalla completa
+  parallax?: boolean;         // Activa el efecto de movimiento
+  overlayOpacity?: number;    // Opacidad del fondo oscuro (0-100)
 }
 
 // --- BLOQUE: BENEFICIOS (FEATURES) ---
@@ -57,15 +62,22 @@ export interface WebConfig {
   template: TemplateTheme;
   logoUrl?: string; // URL del logo del negocio (desde Supabase Storage)
   
+  // --- NUEVA SECCIÓN: APARIENCIA GLOBAL ---
+  appearance?: {
+    font: string;
+    radius: string;
+  };
+
   colors: {
     primary: string;
     secondary?: string;
     background?: string;
+    accent?: string;
   };
 
   // Secciones de la Landing Page
   hero: HeroSection;
   beneficios: FeaturesSection;
-  testimonios?: TestimonialsSection; // Opcional (puede no existir en configuraciones viejas)
+  testimonios?: TestimonialsSection; // Opcional
   footer?: FooterSection;            // Opcional
 }

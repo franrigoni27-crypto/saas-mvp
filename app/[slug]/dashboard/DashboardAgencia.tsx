@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink } from "lucide-react";
+import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
-// Importación local porque WebEditor está en la misma carpeta
 import WebEditor from "./WebEditor"; 
 
 export default function DashboardAgencia() {
@@ -16,7 +15,23 @@ export default function DashboardAgencia() {
   const [loading, setLoading] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
-  const [newClientData, setNewClientData] = useState({ email: "", password: "", nombre: "", whatsapp: "" });
+  
+  // ESTADO DEL FORMULARIO
+  const [newClientData, setNewClientData] = useState({ 
+    email: "", 
+    password: "", 
+    nombre: "", 
+    whatsapp: "",
+    direccion: ""
+  });
+
+  // ESTADO PARA GENERADOR DE HORARIOS (Mejor que escribir texto plano)
+  const [scheduleConfig, setScheduleConfig] = useState({
+    dias: "Lunes a Viernes",
+    apertura: "09:00",
+    cierre: "18:00"
+  });
+
   const [creating, setCreating] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
 
@@ -25,30 +40,22 @@ export default function DashboardAgencia() {
   }, []);
 
   async function checkAgencySession() {
-    // 1. Obtener usuario logueado
     const { data: { user } } = await supabase.auth.getUser();
     
-    if (!user || !user.email) { 
-      router.push("/login"); 
-      return; 
-    }
+    if (!user || !user.email) { router.push("/login"); return; }
 
-    // 2. Buscar la agencia por SLUG
     const { data: agencyData, error } = await supabase
         .from("agencies")
         .select("*")
         .eq("slug", params.slug)
         .single();
     
-    // 3. SEGURIDAD "MAIL CONTRA MAIL" (Columna Única)
-    // Verificamos que la agencia exista Y que el email coincida exactamente
     if (error || !agencyData || agencyData.email !== user.email) {
-        console.error("Acceso denegado: El email no coincide con el dueño.");
+        console.error("Acceso denegado.");
         router.push("/login"); 
         return;
     }
 
-    // Si todo coincide, acceso concedido
     setAgency(agencyData);
     cargarClientes(agencyData.id);
   }
@@ -68,7 +75,7 @@ export default function DashboardAgencia() {
     e.preventDefault();
     setCreating(true);
 
-    // A. Crear el usuario en Authentication (Email/Pass)
+    // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newClientData.email,
         password: newClientData.password,
@@ -76,26 +83,31 @@ export default function DashboardAgencia() {
     });
 
     if (authError) { 
-      alert("Error creando usuario en Auth: " + authError.message); 
+      alert("Error Auth: " + authError.message); 
       setCreating(false); 
       return; 
     }
 
     if (authData.user) {
-        // Generar un Slug único basado en el nombre
         const slug = newClientData.nombre
           .toLowerCase()
           .trim()
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-') + "-" + Math.floor(Math.random() * 1000);
 
-        // B. INSERTAR EL NEGOCIO USANDO LA COLUMNA ÚNICA 'email'
+        // 2. CONSTRUIR EL STRING DE HORARIO
+        // Combina los selectores en un solo texto limpio: "Lunes a Viernes: 09:00 - 18:00"
+        const horarioFinal = `${scheduleConfig.dias}: ${scheduleConfig.apertura} - ${scheduleConfig.cierre}`;
+
+        // 3. INSERTAR EN LA BASE DE DATOS
         const { error: dbError } = await supabase.from("negocios").insert([{
-            email: newClientData.email, // <--- Única columna de verdad
+            email: newClientData.email,
             agency_id: agency.id,
             nombre: newClientData.nombre,
             slug: slug,
             whatsapp: newClientData.whatsapp,
+            direccion: newClientData.direccion, // <--- NUEVO CAMPO
+            horarios: horarioFinal,             // <--- NUEVO CAMPO
             mensaje_bienvenida: `Bienvenidos a ${newClientData.nombre}`,
             color_principal: '#000000',
             estado_plan: 'activo', 
@@ -117,11 +129,11 @@ export default function DashboardAgencia() {
 
         if (!dbError) {
             setShowModal(false);
-            setNewClientData({ email: "", password: "", nombre: "", whatsapp: "" });
-            // Recargar la lista para ver el nuevo cliente
+            // Resetear formulario
+            setNewClientData({ email: "", password: "", nombre: "", whatsapp: "", direccion: "" });
             cargarClientes(agency.id);
         } else {
-            alert("Error guardando datos del negocio: " + dbError.message);
+            alert("Error BD: " + dbError.message);
         }
     }
     setCreating(false);
@@ -133,16 +145,12 @@ export default function DashboardAgencia() {
     router.refresh();
   };
 
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-500 gap-2 font-sans">
-      <Loader2 className="animate-spin"/> Cargando Panel de Agencia...
-    </div>
-  );
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600"/></div>;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100">
       
-      {/* HEADER AGENCIA */}
+      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-6 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
             <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-md shadow-indigo-200">
@@ -154,20 +162,13 @@ export default function DashboardAgencia() {
             </div>
         </div>
         <div className="flex items-center gap-4">
-            <a href={`/${agency.slug}`} target="_blank" className="text-sm text-indigo-600 font-bold hover:underline hidden md:block">
-                Ver mi Landing
-            </a>
-            <button 
-                onClick={handleLogout} 
-                className="text-sm text-slate-500 hover:text-red-600 flex items-center gap-2 font-medium transition-colors px-3 py-2 hover:bg-red-50 rounded-lg"
-            >
+            <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-red-600 flex items-center gap-2 font-medium transition-colors px-3 py-2 hover:bg-red-50 rounded-lg">
                 <LogOut size={16}/> Salir
             </button>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-6 lg:p-8">
-        
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
             <div>
               <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-900">
@@ -197,72 +198,115 @@ export default function DashboardAgencia() {
                             </span>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{cliente.nombre}</h3>
-                        <p className="text-sm text-slate-400 mb-4 truncate font-mono bg-slate-50 inline-block px-2 py-0.5 rounded">
+                        <p className="text-sm text-slate-400 mb-2 truncate font-mono bg-slate-50 inline-block px-2 py-0.5 rounded">
                             {cliente.email}
                         </p>
+                        
+                        {/* DATOS EXTRA VISIBLES EN TARJETA */}
+                        <div className="text-xs text-slate-500 space-y-1 mb-4 border-t border-slate-100 pt-2">
+                           {cliente.horarios && <p className="flex items-center gap-1"><Clock size={12}/> {cliente.horarios}</p>}
+                           {cliente.direccion && <p className="flex items-center gap-1"><MapPin size={12}/> {cliente.direccion}</p>}
+                        </div>
                     </div>
                     
-                    <div className="flex gap-3 mt-4 pt-4 border-t border-slate-100">
-                        <button 
-                            onClick={() => setEditingClient(cliente)}
-                            className="flex-1 text-center py-2.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-xs font-bold text-indigo-700 flex items-center justify-center gap-2 transition-colors border border-indigo-100"
-                        >
+                    <div className="flex gap-3 mt-auto pt-4 border-t border-slate-100">
+                        <button onClick={() => setEditingClient(cliente)} className="flex-1 text-center py-2.5 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-xs font-bold text-indigo-700 flex items-center justify-center gap-2 transition-colors border border-indigo-100">
                             <Palette size={14}/> Diseñar
                         </button>
-                        
-                        <a 
-                            href={`/${cliente.slug}`} 
-                            target="_blank" 
-                            className="flex-1 text-center py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors border border-slate-200"
-                        >
+                        <a href={`/${cliente.slug}`} target="_blank" className="flex-1 text-center py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 transition-colors border border-slate-200">
                             <ExternalLink size={14}/> Ver Web
                         </a>
                     </div>
                 </div>
             ))}
-            
-            {clientes.length === 0 && (
-                <div className="col-span-full py-24 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
-                      <Users className="text-slate-300" size={32}/>
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900">Sin clientes todavía</h3>
-                    <p className="text-slate-500 mb-6 max-w-sm mx-auto text-sm">Crea tu primer negocio para empezar a facturar.</p>
-                    <button onClick={() => setShowModal(true)} className="text-indigo-600 font-bold hover:underline">Crear el primero</button>
-                </div>
-            )}
         </div>
       </main>
 
+      {/* MODAL DE CREACIÓN */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-in zoom-in-95 duration-300 relative">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                     <LogOut size={20} className="rotate-45" /> 
                 </button>
                 
-                <h3 className="text-2xl font-bold mb-2 text-slate-900">Nuevo Cliente</h3>
-                <p className="text-slate-500 text-sm mb-6">El cliente recibirá acceso con este email.</p>
+                <h3 className="text-2xl font-bold mb-6 text-slate-900">Nuevo Cliente</h3>
                 
                 <form onSubmit={handleCreateClient} className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 uppercase mb-1 block">Nombre del Negocio</label>
-                      <input required placeholder="Ej: Pizzería Don Mario" className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all mb-3" onChange={e => setNewClientData({...newClientData, nombre: e.target.value})}/>
+                    {/* NOMBRE Y EMAIL */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nombre Negocio</label>
+                            <input required placeholder="Ej: Barbería Vintage" className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e => setNewClientData({...newClientData, nombre: e.target.value})}/>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Email (Login)</label>
+                            <input required type="email" placeholder="cliente@gmail.com" className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e => setNewClientData({...newClientData, email: e.target.value})}/>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Contraseña</label>
+                            <input required type="password" placeholder="******" className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e => setNewClientData({...newClientData, password: e.target.value})}/>
+                        </div>
                     </div>
 
+                    <div className="h-px bg-slate-100 my-2"></div>
+                    
+                    {/* DATOS DEL NEGOCIO (NUEVOS) */}
                     <div>
-                        <label className="text-xs font-bold text-slate-700 uppercase mb-1 block">Email de Acceso (Login)</label>
-                        <input required type="email" placeholder="cliente@gmail.com" className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all mb-3" onChange={e => setNewClientData({...newClientData, email: e.target.value})}/>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Dirección</label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-3 text-slate-400" size={16} />
+                            <input 
+                                placeholder="Av. Siempre Viva 123" 
+                                className="w-full pl-10 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                onChange={e => setNewClientData({...newClientData, direccion: e.target.value})}
+                            />
+                        </div>
                     </div>
 
+                    {/* SELECTOR INTELIGENTE DE HORARIOS */}
                     <div>
-                        <label className="text-xs font-bold text-slate-700 uppercase mb-1 block">Contraseña Inicial</label>
-                        <input required type="password" placeholder="******" className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" onChange={e => setNewClientData({...newClientData, password: e.target.value})}/>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Horario de Atención</label>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                            {/* Días */}
+                            <select 
+                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                value={scheduleConfig.dias}
+                                onChange={e => setScheduleConfig({...scheduleConfig, dias: e.target.value})}
+                            >
+                                <option>Lunes a Viernes</option>
+                                <option>Lunes a Sábado</option>
+                                <option>Lunes a Domingo</option>
+                                <option>Todos los días</option>
+                            </select>
+                            
+                            {/* Horas (Apertura - Cierre) */}
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="time" 
+                                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                    value={scheduleConfig.apertura}
+                                    onChange={e => setScheduleConfig({...scheduleConfig, apertura: e.target.value})}
+                                />
+                                <span className="text-slate-400 text-xs font-bold">A</span>
+                                <input 
+                                    type="time" 
+                                    className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                                    value={scheduleConfig.cierre}
+                                    onChange={e => setScheduleConfig({...scheduleConfig, cierre: e.target.value})}
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 text-center">
+                                Se guardará como: <strong>{scheduleConfig.dias}: {scheduleConfig.apertura} - {scheduleConfig.cierre}</strong>
+                            </p>
+                        </div>
                     </div>
 
+                    <div className="h-px bg-slate-100 my-2"></div>
+
                     <div>
-                      <label className="text-xs font-bold text-slate-700 uppercase mb-1 block">WhatsApp (Opcional)</label>
-                      <input placeholder="+549..." className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-indigo-500 transition-all" onChange={e => setNewClientData({...newClientData, whatsapp: e.target.value})}/>
+                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">WhatsApp (Opcional)</label>
+                      <input placeholder="+549..." className="w-full p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onChange={e => setNewClientData({...newClientData, whatsapp: e.target.value})}/>
                     </div>
                     
                     <div className="flex gap-3 pt-4">
@@ -276,14 +320,7 @@ export default function DashboardAgencia() {
         </div>
       )}
 
-      {editingClient && (
-        <WebEditor 
-            negocio={editingClient} 
-            onClose={() => setEditingClient(null)} 
-            onSave={() => cargarClientes(agency.id)} 
-        />
-      )}
-
+      {editingClient && <WebEditor negocio={editingClient} onClose={() => setEditingClient(null)} onSave={() => cargarClientes(agency.id)} />}
     </div>
   );
 }
