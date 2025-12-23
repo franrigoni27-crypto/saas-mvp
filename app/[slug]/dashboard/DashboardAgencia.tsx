@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock, Trash2, AlertTriangle } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
-import WebEditor from "./WebEditor"; 
+import WebEditorGeneral from "./WebEditorGeneral";
+import WebEditorSpecialized from "./WebEditorSpecialized"; 
 
 const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -439,7 +440,20 @@ export default function DashboardAgencia() {
         </div>
       )}
 
-      {editingClient && <WebEditor negocio={editingClient} onClose={() => setEditingClient(null)} onSave={() => cargarClientes(agency.id)} />}
-    </div>
-  );
-}
+      {editingClient && (
+        <>
+          {editingClient.config_web?.template === 'specialized' ? (
+            <WebEditorSpecialized 
+              negocio={editingClient} 
+              onClose={() => setEditingClient(null)} 
+              onSave={() => cargarClientes(agency.id)} 
+            />
+          ) : (
+            <WebEditorGeneral 
+              negocio={editingClient} 
+              onClose={() => setEditingClient(null)} 
+              onSave={() => cargarClientes(agency.id)} 
+            />
+          )}
+        </>
+      )}
