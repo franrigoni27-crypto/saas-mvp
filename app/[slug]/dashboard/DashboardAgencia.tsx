@@ -143,8 +143,21 @@ export default function DashboardAgencia() {
             mensaje_bienvenida: `Bienvenidos a ${newClientData.nombre}`,
             color_principal: '#000000',
             estado_plan: 'activo', 
+            
+            // --- CONFIGURACIÓN WEB POR DEFECTO ACTUALIZADA ---
             config_web: {
-              template: "modern",
+              template: "general", // <--- PLANTILLA POR DEFECTO
+              
+              // CONFIGURACIÓN DE RESERVAS (Modales Dinámicos)
+              booking: {
+                modalTitle: "Reservar Turno",
+                step1Title: "Selecciona el Servicio",
+                option1Title: "Servicio Estándar",
+                option1Desc: "Duración: 1 hora",
+                option2Title: "Servicio Premium",
+                option2Desc: "Completo"
+              },
+
               hero: { 
                 titulo: newClientData.nombre, 
                 subtitulo: "El mejor servicio profesional.", 
@@ -155,6 +168,10 @@ export default function DashboardAgencia() {
                 mostrar: true, 
                 titulo: "Nuestros Servicios", 
                 items: [{titulo: "Calidad", desc: "Garantizada"}]
+              },
+              footer: {
+                mostrar: true,
+                textoCopyright: "Todos los derechos reservados."
               }
             }
         }]);

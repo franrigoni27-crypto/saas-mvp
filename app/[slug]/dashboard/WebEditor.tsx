@@ -1,11 +1,21 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { Save, X, LayoutTemplate, Eye, EyeOff, Loader2, Monitor, Smartphone, ExternalLink, Palette, MousePointerClick, Layout, Layers, MapPin, Clock } from "lucide-react";
+// Agregamos Calendar al import de iconos
+import { Save, X, LayoutTemplate, Eye, Loader2, Monitor, Smartphone, ExternalLink, Palette, MousePointerClick, Layout, Layers, MapPin, Grid, Briefcase, Calendar } from "lucide-react";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 
 const DEFAULT_CONFIG = {
-  template: "modern",
+  template: "general",
+  // AGREGAMOS BOOKING AL DEFAULT CONFIG
+  booking: {
+    modalTitle: "Reservar Turno",
+    step1Title: "Selecciona el Servicio",
+    option1Title: "Servicio Estándar",
+    option1Desc: "Duración: 1 hora",
+    option2Title: "Servicio Premium",
+    option2Desc: "Completo"
+  },
   appearance: { font: 'sans', radius: 'medium' },
   colors: { primary: "#000000" },
   hero: { 
@@ -34,8 +44,10 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
   const supabase = createClient();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  // REFERENCIAS PARA SCROLL
+  // REFERENCIAS
   const sectionsRefs: any = {
+    design: useRef<HTMLDivElement>(null),
+    booking: useRef<HTMLDivElement>(null), // <--- NUEVA REFERENCIA
     contact: useRef<HTMLDivElement>(null),
     appearance: useRef<HTMLDivElement>(null),
     identity: useRef<HTMLDivElement>(null),
@@ -44,21 +56,16 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
     footer: useRef<HTMLDivElement>(null),
   };
 
-  // ESTADO DE LA CONFIGURACIÓN VISUAL (JSONB)
   const [config, setConfig] = useState({ ...DEFAULT_CONFIG, ...(negocio.config_web || {}) });
-  
-  // ESTADO DE DATOS DEL NEGOCIO (COLUMNAS DB)
   const [dbFields, setDbFields] = useState({
     direccion: negocio.direccion || "",
     horarios: negocio.horarios || "",
-    google_maps_link: negocio.google_maps_link || "" // <--- CAMPO NUEVO EN EL ESTADO
+    google_maps_link: negocio.google_maps_link || "" 
   });
-
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
-  // ESCUCHAR CLICS DESDE EL IFRAME
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
         if (event.data?.type === "FOCUS_SECTION") {
@@ -75,35 +82,29 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // ENVÍO DE CAMBIOS AL IFRAME
   const sendConfigUpdate = (newConfig: any) => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: "UPDATE_CONFIG", payload: newConfig }, "*");
     }
   };
-
   const sendDbUpdate = (newDbFields: any) => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: "UPDATE_DB", payload: newDbFields }, "*");
     }
   };
-
-  // GUARDADO EN SUPABASE (ACTUALIZA JSON Y COLUMNAS)
   const handleSave = async () => {
     setSaving(true);
     const { error } = await supabase.from("negocios").update({ 
         config_web: config,
         direccion: dbFields.direccion,
         horarios: dbFields.horarios,
-        google_maps_link: dbFields.google_maps_link // <--- GUARDAMOS EL LINK EN DB
+        google_maps_link: dbFields.google_maps_link 
     }).eq("id", negocio.id);
-
     if (error) alert("Error: " + error.message);
     setSaving(false);
     if (onSave) onSave();
   };
 
-  // ACTUALIZADORES DE ESTADO
   const updateConfigField = (section: string, field: string, value: any) => {
     setConfig((prev: any) => {
       let newConfig;
@@ -113,7 +114,6 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
       return newConfig;
     });
   };
-
   const updateArrayItem = (section: string, index: number, field: string, value: string) => {
     setConfig((prev: any) => {
         const currentItems = prev[section]?.items || [];
@@ -125,7 +125,6 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
         return newConfig;
     });
   };
-
   const updateDbField = (field: string, value: string) => {
       const newDb = { ...dbFields, [field]: value };
       setDbFields(newDb);
@@ -138,7 +137,7 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
   return (
     <div className="fixed inset-0 z-[100] flex bg-zinc-100 font-sans h-screen w-screen overflow-hidden">
       
-      {/* --- PREVIEW AREA --- */}
+      {/* PREVIEW */}
       <div className="flex-1 flex flex-col h-full relative border-r border-zinc-300">
         <div className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shadow-sm z-10">
             <div className="flex items-center gap-3">
@@ -153,19 +152,12 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
         </div>
         <div className="flex-1 bg-zinc-200/50 flex items-center justify-center p-8 overflow-hidden relative">
             <div className={`transition-all duration-500 bg-white shadow-2xl border border-zinc-300 overflow-hidden ${viewMode === "mobile" ? "w-[375px] h-[667px] rounded-[2.5rem] border-[8px] border-zinc-800 shadow-xl" : "w-full h-full rounded-lg shadow-lg"}`}>
-                <iframe 
-                    ref={iframeRef} 
-                    src={previewUrl} 
-                    className="w-full h-full bg-white" 
-                    style={{ border: 'none' }} 
-                    title="Preview" 
-                    onLoad={() => { sendConfigUpdate(config); sendDbUpdate(dbFields); }} 
-                />
+                <iframe ref={iframeRef} src={previewUrl} className="w-full h-full bg-white" style={{ border: 'none' }} title="Preview" onLoad={() => { sendConfigUpdate(config); sendDbUpdate(dbFields); }} />
             </div>
         </div>
       </div>
 
-      {/* --- SIDEBAR --- */}
+      {/* SIDEBAR */}
       <div className="w-[400px] bg-white shadow-2xl flex flex-col h-full z-20 border-l border-zinc-200">
         <div className="p-5 border-b border-zinc-200 flex justify-between items-center bg-white sticky top-0 z-10">
             <h2 className="font-bold text-lg text-zinc-900 flex items-center gap-2"><LayoutTemplate size={20} className="text-indigo-600"/> Editor</h2>
@@ -174,75 +166,104 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-zinc-50/30">
             
-            {/* 1. SECCIÓN CONTACTO */}
+            {/* 0. DISEÑO */}
+            <div ref={sectionsRefs.design} className={getSectionClass('design')}>
+                <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <LayoutTemplate size={16} className="text-indigo-500" /> Estructura y Diseño
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => updateConfigField('root', 'template', 'general')} className={`p-3 rounded-xl border text-left transition-all ${config.template === 'general' ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-zinc-200 hover:border-zinc-300 bg-white'}`}>
+                        <Grid size={20} className={`mb-2 ${config.template === 'general' ? 'text-indigo-600' : 'text-zinc-400'}`}/>
+                        <p className="font-bold text-xs text-zinc-900">General</p>
+                        <p className="text-[10px] text-zinc-500 leading-tight mt-1">Servicios rápidos</p>
+                    </button>
+                    <button onClick={() => updateConfigField('root', 'template', 'specialized')} className={`p-3 rounded-xl border text-left transition-all ${config.template === 'specialized' ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-zinc-200 hover:border-zinc-300 bg-white'}`}>
+                        <Briefcase size={20} className={`mb-2 ${config.template === 'specialized' ? 'text-indigo-600' : 'text-zinc-400'}`}/>
+                        <p className="font-bold text-xs text-zinc-900">Especializado</p>
+                        <p className="text-[10px] text-zinc-500 leading-tight mt-1">Consultores</p>
+                    </button>
+                </div>
+            </div>
+
+            {/* 1. CONTACTO */}
             <div ref={sectionsRefs.contact} className={getSectionClass('contact')}>
                 <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
                     <MapPin size={16} className="text-blue-500" /> Información de Contacto
                 </h3>
                 <div>
                     <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Dirección</label>
-                    <input 
-                        type="text" 
-                        value={dbFields.direccion} 
-                        onChange={(e) => updateDbField('direccion', e.target.value)} 
-                        className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="Ej: Av. Principal 123"
-                    />
+                    <input type="text" value={dbFields.direccion} onChange={(e) => updateDbField('direccion', e.target.value)} className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
-                {/* INPUT NUEVO PARA GOOGLE MAPS */}
                 <div>
                     <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Link Google Maps</label>
                     <div className="relative">
-                        <input 
-                            type="text" 
-                            value={dbFields.google_maps_link} 
-                            onChange={(e) => updateDbField('google_maps_link', e.target.value)} 
-                            className="w-full p-2 pl-8 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="https://goo.gl/maps/..."
-                        />
+                        <input type="text" value={dbFields.google_maps_link} onChange={(e) => updateDbField('google_maps_link', e.target.value)} className="w-full p-2 pl-8 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" />
                         <ExternalLink size={14} className="absolute left-2.5 top-2.5 text-zinc-400"/>
                     </div>
                 </div>
                 <div>
                     <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Horarios</label>
-                    <input 
-                        type="text" 
-                        value={dbFields.horarios} 
-                        onChange={(e) => updateDbField('horarios', e.target.value)} 
-                        className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="Ej: Lun-Vie 9:00 - 18:00"
-                    />
+                    <input type="text" value={dbFields.horarios} onChange={(e) => updateDbField('horarios', e.target.value)} className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
             </div>
 
-            {/* 2. SECCIÓN APARIENCIA */}
-            <div ref={sectionsRefs.appearance} className={getSectionClass('appearance')}>
-                <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100"><Palette size={16} className="text-purple-500" /> Apariencia</h3>
+            {/* 2. RESERVAS (NUEVA SECCIÓN DE EDICIÓN) */}
+            <div ref={sectionsRefs.booking} className={getSectionClass('booking')}>
+                <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100">
+                    <Calendar size={16} className="text-green-500" /> Textos de Reserva
+                </h3>
                 <div>
-                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Tipografía</label>
-                    <select value={config.appearance?.font || 'sans'} onChange={(e) => updateConfigField('appearance', 'font', e.target.value)} className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white">
-                        <option value="sans">Moderna (Sans)</option>
-                        <option value="serif">Elegante (Serif)</option>
-                        <option value="mono">Técnica (Mono)</option>
-                    </select>
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Título del Modal</label>
+                    <input type="text" value={config.booking?.modalTitle || ""} onChange={(e) => updateConfigField('booking', 'modalTitle', e.target.value)} placeholder="Agendar Turno" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
                 </div>
                 <div>
-                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Bordes</label>
-                    <div className="flex gap-2">
-                        {['none', 'medium', 'full'].map((mode) => (
-                            <button key={mode} onClick={() => updateConfigField('appearance', 'radius', mode)} className={`flex-1 py-2 text-xs border rounded-lg ${config.appearance?.radius === mode ? 'bg-purple-50 border-purple-500 text-purple-700 font-bold' : 'bg-white'}`}>{mode}</button>
-                        ))}
+                    <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Título Paso 1</label>
+                    <input type="text" value={config.booking?.step1Title || ""} onChange={(e) => updateConfigField('booking', 'step1Title', e.target.value)} placeholder="Selecciona Servicio" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
+                </div>
+                
+                {/* Opciones de Botones */}
+                <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-200 space-y-3">
+                    <p className="text-xs font-bold text-zinc-500 uppercase">Botón 1 (Izquierda)</p>
+                    <input type="text" value={config.booking?.option1Title || ""} onChange={(e) => updateConfigField('booking', 'option1Title', e.target.value)} placeholder="Título Opción 1" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
+                    <input type="text" value={config.booking?.option1Desc || ""} onChange={(e) => updateConfigField('booking', 'option1Desc', e.target.value)} placeholder="Desc. Opción 1" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
+                </div>
+                <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-200 space-y-3">
+                    <p className="text-xs font-bold text-zinc-500 uppercase">Botón 2 (Derecha)</p>
+                    <input type="text" value={config.booking?.option2Title || ""} onChange={(e) => updateConfigField('booking', 'option2Title', e.target.value)} placeholder="Título Opción 2" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
+                    <input type="text" value={config.booking?.option2Desc || ""} onChange={(e) => updateConfigField('booking', 'option2Desc', e.target.value)} placeholder="Desc. Opción 2" className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white"/>
+                </div>
+            </div>
+
+            {/* 3. APARIENCIA */}
+            <div ref={sectionsRefs.appearance} className={getSectionClass('appearance')}>
+                <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100"><Palette size={16} className="text-purple-500" /> Apariencia</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Tipografía</label>
+                        <select value={config.appearance?.font || 'sans'} onChange={(e) => updateConfigField('appearance', 'font', e.target.value)} className="w-full p-2 border border-zinc-200 rounded-lg text-sm bg-white">
+                            <option value="sans">Moderna</option>
+                            <option value="serif">Elegante</option>
+                            <option value="mono">Técnica</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase mb-1 block">Bordes</label>
+                        <div className="flex gap-1">
+                            {['none', 'medium', 'full'].map((mode) => (
+                                <button key={mode} onClick={() => updateConfigField('appearance', 'radius', mode)} className={`flex-1 py-2 text-xs border rounded-lg ${config.appearance?.radius === mode ? 'bg-purple-50 border-purple-500 text-purple-700 font-bold' : 'bg-white'}`}>{mode === 'none' ? 'Cuad' : mode === 'medium' ? 'Red' : 'Circ'}</button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* 3. IDENTIDAD */}
+            {/* 4. IDENTIDAD */}
             <div ref={sectionsRefs.identity} className={getSectionClass('identity')}>
                 <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2 pb-3 border-b border-zinc-100"><span className="w-2 h-2 rounded-full bg-orange-500"></span> Identidad</h3>
                 <ImageUpload label="Logo" value={config.logoUrl} onChange={(url) => updateConfigField('root', 'logoUrl', url)} />
             </div>
 
-            {/* 4. HERO */}
+            {/* 5. HERO */}
             <div ref={sectionsRefs.hero} className={getSectionClass('hero')}>
                 <div className="flex justify-between items-center pb-3 border-b border-zinc-100">
                     <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> Portada</h3>
@@ -250,27 +271,6 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
                 </div>
                 {config.hero?.mostrar && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                        <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-200">
-                            <label className="text-[11px] font-bold text-zinc-400 uppercase mb-2 block flex items-center gap-1"><Layout size={12}/> Diseño</label>
-                            <div className="flex gap-2">
-                                <button onClick={() => updateConfigField('hero', 'layout', 'split')} className={`flex-1 py-2 text-xs border rounded-lg ${config.hero?.layout !== 'full' ? 'bg-white border-indigo-500 text-indigo-700 font-bold' : ''}`}>Dividido</button>
-                                <button onClick={() => updateConfigField('hero', 'layout', 'full')} className={`flex-1 py-2 text-xs border rounded-lg ${config.hero?.layout === 'full' ? 'bg-white border-indigo-500 text-indigo-700 font-bold' : ''}`}>Cinemático</button>
-                            </div>
-                        </div>
-                        {config.hero?.layout === 'full' && (
-                            <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-200 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-bold text-zinc-600 flex items-center gap-2"><Layers size={14}/> Efecto Parallax</label>
-                                    <button onClick={() => updateConfigField('hero', 'parallax', !config.hero?.parallax)} className={`w-10 h-6 rounded-full p-1 transition-colors ${config.hero?.parallax ? 'bg-indigo-600' : 'bg-zinc-300'}`}>
-                                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${config.hero?.parallax ? 'translate-x-4' : ''}`}></div>
-                                    </button>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-zinc-400 uppercase mb-1 block">Oscuridad ({config.hero?.overlayOpacity || 50}%)</label>
-                                    <input type="range" min="0" max="90" value={config.hero?.overlayOpacity || 50} onChange={(e) => updateConfigField('hero', 'overlayOpacity', e.target.value)} className="w-full accent-indigo-600"/>
-                                </div>
-                            </div>
-                        )}
                         <input type="text" value={config.hero.titulo} onChange={(e) => updateConfigField('hero', 'titulo', e.target.value)} className="w-full p-2 border rounded text-sm"/>
                         <textarea rows={3} value={config.hero.subtitulo} onChange={(e) => updateConfigField('hero', 'subtitulo', e.target.value)} className="w-full p-2 border rounded text-sm"/>
                         <ImageUpload label="Imagen de Fondo" value={config.hero.imagenUrl} onChange={(url) => updateConfigField('hero', 'imagenUrl', url)} />
@@ -278,10 +278,10 @@ export default function WebEditor({ negocio, onClose, onSave }: any) {
                 )}
             </div>
 
-            {/* 5. BENEFICIOS */}
+            {/* 6. BENEFICIOS */}
             <div ref={sectionsRefs.beneficios} className={getSectionClass('beneficios')}>
                 <div className="flex justify-between items-center pb-3 border-b border-zinc-100">
-                    <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Beneficios</h3>
+                    <h3 className="font-bold text-zinc-800 text-sm uppercase tracking-wide flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> {config.template === 'specialized' ? 'Expertise' : 'Servicios'}</h3>
                     <button onClick={() => updateConfigField('beneficios', 'mostrar', !config.beneficios?.mostrar)} className="text-zinc-400 hover:text-emerald-600"><Eye size={16}/></button>
                 </div>
                 {config.beneficios?.mostrar && (
