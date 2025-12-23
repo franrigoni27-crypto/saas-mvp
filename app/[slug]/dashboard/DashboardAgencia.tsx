@@ -25,7 +25,8 @@ export default function DashboardAgencia() {
     nombre: "", 
     whatsapp: "",
     direccion: "",
-    google_maps_link: "" // <--- CAMPO NUEVO AGREGADO
+    google_maps_link: "",
+    template: "general"
   });
 
   // ESTADO HORARIOS
@@ -146,7 +147,7 @@ export default function DashboardAgencia() {
             
             // --- CONFIGURACIÓN WEB POR DEFECTO ACTUALIZADA ---
             config_web: {
-              template: "general", // <--- PLANTILLA POR DEFECTO
+              template: newClientData.template, 
               
               // CONFIGURACIÓN DE RESERVAS (Modales Dinámicos)
               booking: {
@@ -178,7 +179,15 @@ export default function DashboardAgencia() {
 
         if (!dbError) {
             setShowModal(false);
-            setNewClientData({ email: "", password: "", nombre: "", whatsapp: "", direccion: "", google_maps_link: "" });
+            setNewClientData({ 
+                email: "", 
+                password: "", 
+                nombre: "", 
+                whatsapp: "", 
+                direccion: "", 
+                google_maps_link: "", 
+                template: "general" 
+            });
             cargarClientes(agency.id);
         } else {
             alert("Error BD: " + dbError.message);
@@ -307,6 +316,37 @@ export default function DashboardAgencia() {
 
                     <div className="h-px bg-slate-100 my-2"></div>
                     
+                    <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Tipo de Servicio / Plantilla</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <label className={`cursor-pointer border p-3 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${newClientData.template === 'general' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:border-indigo-300'}`}>
+                                <input 
+                                    type="radio" 
+                                    name="template" 
+                                    value="general" 
+                                    className="hidden" 
+                                    checked={newClientData.template === 'general'}
+                                    onChange={() => setNewClientData({...newClientData, template: 'general'})}
+                                />
+                                <span className="font-bold text-sm">General</span>
+                                <span className="text-[10px] text-center leading-tight opacity-75">Turnos simples (Día/Hora)</span>
+                            </label>
+
+                            <label className={`cursor-pointer border p-3 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${newClientData.template === 'specialized' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:border-indigo-300'}`}>
+                                <input 
+                                    type="radio" 
+                                    name="template" 
+                                    value="specialized" 
+                                    className="hidden" 
+                                    checked={newClientData.template === 'specialized'}
+                                    onChange={() => setNewClientData({...newClientData, template: 'specialized'})}
+                                />
+                                <span className="font-bold text-sm">Especializada</span>
+                                <span className="text-[10px] text-center leading-tight opacity-75">Citas para servicios específicos</span>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* SECCIÓN DIRECCIÓN Y MAPAS */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Dirección</label>
