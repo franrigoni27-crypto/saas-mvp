@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock, Trash2, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Plus, LogOut, Users, Loader2, Palette, ExternalLink, MapPin, Clock, Trash2, Layout } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import WebEditorGeneral from "./WebEditorGeneral";
 import WebEditorSpecialized from "./WebEditorSpecialized"; 
@@ -27,7 +27,7 @@ export default function DashboardAgencia() {
     whatsapp: "",
     direccion: "",
     google_maps_link: "",
-    template: "general"
+    template: "general" // Default explícito
   });
 
   // ESTADO HORARIOS
@@ -39,7 +39,6 @@ export default function DashboardAgencia() {
   });
 
   const [creating, setCreating] = useState(false);
-  // Estado para saber cual se esta borrando y mostrar spinner
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingClient, setEditingClient] = useState<any>(null);
 
@@ -53,7 +52,7 @@ export default function DashboardAgencia() {
     if (!user || !user.email) { router.push("/login"); return; }
 
     const { data: agencyData, error } = await supabase
-        .from("agencies") // Asegúrate que tu tabla se llame 'agencies' o 'agencias' según tu DB
+        .from("agencies")
         .select("*")
         .eq("slug", params.slug)
         .single();
@@ -79,9 +78,7 @@ export default function DashboardAgencia() {
     setLoading(false);
   }
 
-  // --- FUNCIÓN DE ELIMINAR ---
   const handleDeleteClient = async (id: number, nombre: string) => {
-    // 1. Confirmación visual simple
     const confirmado = window.confirm(
         `⚠️ ¿Estás seguro de eliminar a "${nombre}"?\n\nEsta acción borrará PERMANENTEMENTE:\n- Sus turnos\n- Sus leads\n- Su configuración web\n\nNo se puede deshacer.`
     );
@@ -90,8 +87,6 @@ export default function DashboardAgencia() {
 
     setDeletingId(id);
 
-    // 2. Borrar de Supabase
-    // Gracias al "ON DELETE CASCADE" que configuramos en SQL, esto borrará todo lo relacionado
     const { error } = await supabase
         .from("negocios")
         .delete()
@@ -100,7 +95,6 @@ export default function DashboardAgencia() {
     if (error) {
         alert("Error al eliminar: " + error.message);
     } else {
-        // 3. Actualizar UI sin recargar
         setClientes(prev => prev.filter(c => c.id !== id));
     }
     
@@ -111,7 +105,6 @@ export default function DashboardAgencia() {
     e.preventDefault();
     setCreating(true);
 
-    // 1. Crear usuario en Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newClientData.email,
         password: newClientData.password,
@@ -140,25 +133,30 @@ export default function DashboardAgencia() {
             slug: slug,
             whatsapp: newClientData.whatsapp,
             direccion: newClientData.direccion,
-            google_maps_link: newClientData.google_maps_link, // <--- GUARDAMOS EL LINK EN LA BD
+            google_maps_link: newClientData.google_maps_link,
             horarios: horarioFinal,
             mensaje_bienvenida: `Bienvenidos a ${newClientData.nombre}`,
             color_principal: '#000000',
             estado_plan: 'activo', 
             
-            // --- CONFIGURACIÓN WEB POR DEFECTO ACTUALIZADA ---
+            // --- GUARDA EL TEMPLATE SELECCIONADO ---
             config_web: {
-              template: newClientData.template, 
+              template: newClientData.template, // <--- CRÍTICO: Aquí se define qué editor usará
               
-              // CONFIGURACIÓN DE RESERVAS (Modales Dinámicos)
-              booking: {
-                modalTitle: "Reservar Turno",
-                step1Title: "Selecciona el Servicio",
-                option1Title: "Servicio Estándar",
-                option1Desc: "Duración: 1 hora",
-                option2Title: "Servicio Premium",
-                option2Desc: "Completo"
-              },
+              booking: newClientData.template === 'specialized' 
+                ? { // Config Default Especializada
+                    citaTitle: "Reserva tu Cita",
+                    citaBtnText: "Ver Disponibilidad",
+                    citaDesc: "Selecciona el día que prefieras."
+                  }
+                : { // Config Default General
+                    modalTitle: "Reservar Turno",
+                    step1Title: "Selecciona el Servicio",
+                    option1Title: "Servicio Estándar",
+                    option1Desc: "Duración: 30 min",
+                    option2Title: "Servicio Premium",
+                    option2Desc: "Completo 1h"
+                  },
 
               hero: { 
                 titulo: newClientData.nombre, 
@@ -244,10 +242,14 @@ export default function DashboardAgencia() {
 
         {/* LISTA DE CLIENTES */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clientes.map((cliente) => (
+            {clientes.map((cliente) => {
+                // Determinamos el template actual para mostrarlo en la UI
+                const currentTemplate = cliente.config_web?.template || 'general';
+                const isSpecialized = currentTemplate === 'specialized';
+
+                return (
                 <div key={cliente.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all p-6 flex flex-col justify-between group relative">
                     
-                    {/* BOTÓN DE ELIMINAR */}
                     <button 
                         onClick={() => handleDeleteClient(cliente.id, cliente.nombre)}
                         disabled={deletingId === cliente.id}
@@ -262,9 +264,15 @@ export default function DashboardAgencia() {
                             <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md" style={{backgroundColor: cliente.color_principal || '#000'}}>
                                 {cliente.nombre.substring(0,1)}
                             </div>
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold border tracking-wide ${cliente.estado_plan === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                {cliente.estado_plan}
-                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold border tracking-wide ${cliente.estado_plan === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {cliente.estado_plan}
+                                </span>
+                                {/* Badge para saber qué template usa */}
+                                <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border ${isSpecialized ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                                    <Layout size={10}/> {isSpecialized ? 'Especializada' : 'General'}
+                                </span>
+                            </div>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors pr-6">{cliente.nombre}</h3>
                         <p className="text-sm text-slate-400 mb-2 truncate font-mono bg-slate-50 inline-block px-2 py-0.5 rounded">
@@ -286,7 +294,7 @@ export default function DashboardAgencia() {
                         </a>
                     </div>
                 </div>
-            ))}
+            )})}
         </div>
       </main>
 
@@ -361,7 +369,6 @@ export default function DashboardAgencia() {
                         </div>
                     </div>
 
-                    {/* NUEVO CAMPO: LINK DE GOOGLE MAPS */}
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Link de Google Maps</label>
                         <div className="relative">
@@ -440,22 +447,33 @@ export default function DashboardAgencia() {
         </div>
       )}
 
+      {/* --- RENDERIZADO CONDICIONAL SEGURO DEL EDITOR --- */}
       {editingClient && (
         <>
-          {editingClient.config_web?.template === 'specialized' ? (
-            <WebEditorSpecialized 
-              negocio={editingClient} 
-              onClose={() => setEditingClient(null)} 
-              onSave={() => cargarClientes(agency.id)} 
-            />
-          ) : (
-            <WebEditorGeneral 
-              negocio={editingClient} 
-              onClose={() => setEditingClient(null)} 
-              onSave={() => cargarClientes(agency.id)} 
-            />
-          )}
+            {(() => {
+                // Fallback de seguridad: Si no hay template definido, usa 'general'
+                const templateType = editingClient.config_web?.template || 'general';
+
+                if (templateType === 'specialized') {
+                    return (
+                        <WebEditorSpecialized 
+                            negocio={editingClient} 
+                            onClose={() => setEditingClient(null)} 
+                            onSave={() => cargarClientes(agency.id)} 
+                        />
+                    );
+                } else {
+                    return (
+                        <WebEditorGeneral 
+                            negocio={editingClient} 
+                            onClose={() => setEditingClient(null)} 
+                            onSave={() => cargarClientes(agency.id)} 
+                        />
+                    );
+                }
+            })()}
         </>
       )}
-      </div> 
-)}
+    </div> 
+  );
+}
