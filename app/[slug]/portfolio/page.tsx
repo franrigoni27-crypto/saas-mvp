@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server"; // Asegúrate de tener tu cliente de servidor configurado
+"use client";
+import { createClient } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";

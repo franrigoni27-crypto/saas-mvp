@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Calendar, Tag } from "lucide-react";
-import { SafeHTML } from "../../../../../components/templates/ui/SafeHTML"; // Asegúrate de que esta ruta sea correcta
+import { SafeHTML } from "@/components/ui/SafeHTML"; // Asegúrate de que esta ruta sea correcta
 
 export default async function ProjectDetailPage({ params }: { params: { slug: string, projectSlug: string } }) {
   const supabase = createClient();
