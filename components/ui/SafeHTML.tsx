@@ -1,22 +1,19 @@
-import React from 'react';
+"use client";
+import React from "react";
 
 interface SafeHTMLProps {
-  as?: React.ElementType; 
-  html: string | null | undefined;
+  html: string;
   className?: string;
-  [key: string]: any; 
+  as?: React.ElementType;
 }
 
-export const SafeHTML = ({ as: Tag = 'div', html, className, ...props }: SafeHTMLProps) => {
-  // Si no hay HTML, no renderizamos nada para evitar errores
+// Fíjate que dice "export const", NO "export default"
+export const SafeHTML = ({ html, className = "", as: Component = "div" }: SafeHTMLProps) => {
   if (!html) return null;
-
   return (
-    <Tag
+    <Component
       className={className}
-      // Renderizado directo sin librerías externas
       dangerouslySetInnerHTML={{ __html: html }}
-      {...props}
     />
   );
 };
