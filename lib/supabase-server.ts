@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-export async function createClient() {
-  const cookieStore = await cookies()
+export function createClient() {
+  const cookieStore = cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,16 +10,14 @@ export async function createClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return (cookieStore as any).getAll()
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              (cookieStore as any).set({ name, value, ...options })
             )
           } catch {
-            // El método setAll fue llamado desde un Server Component.
-            // Esto puede ignorarse.
           }
         },
       },
@@ -27,4 +25,3 @@ export async function createClient() {
   )
 }
 
-// Comentario para forzar deploy en Vercel
