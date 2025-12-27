@@ -1,7 +1,7 @@
 "use client";
 import { ArrowRight, MapPin, Instagram } from "lucide-react";
 import { SafeHTML } from "../../../ui/SafeHTML";
-import { Footer } from "../../../blocks/Footer";         // Subimos 4 niveles
+import { Footer } from "../../../blocks/Footer";       
 import SharedModals from "../../../ui/SharedModals";
 
 export default function SpecializedLanding({ logic }: any) {
