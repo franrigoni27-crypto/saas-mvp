@@ -127,6 +127,8 @@ export interface BookingConfig {
   requestDeposit: boolean;     // ¿Pide seña?
   depositPercentage?: number;
   requireManualConfirmation?: boolean;  // Porcentaje (ej: 50)
+  allowMultipleServices?: boolean; // El toggle desde el editor
+  maxServicesPerBooking?: number;
 }
 export interface EmailTemplate {
   enabled: boolean;

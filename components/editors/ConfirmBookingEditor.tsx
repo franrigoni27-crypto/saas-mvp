@@ -668,6 +668,21 @@ export default function ConfirmBookingEditor({ negocio, onClose, onSave }: any) 
                     </div>
                     {/* --- FIN NUEVO --- */}
 
+                    <div className="flex items-center justify-between py-3 border-b border-zinc-200/60">
+                        <div className="pr-4">
+                            <span className="text-sm font-medium text-zinc-700">Permitir Multi-Servicio</span>
+                            <p className="text-[10px] text-zinc-500 leading-tight mt-0.5">
+                                Permite al cliente seleccionar varios servicios en un mismo turno (ej: Lavado + Encerado).
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => updateConfigField('booking', 'allowMultipleServices', !config.booking?.allowMultipleServices)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${config.booking?.allowMultipleServices ? 'bg-indigo-600' : 'bg-zinc-300'}`}
+                        >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${config.booking?.allowMultipleServices ? 'translate-x-5' : 'translate-x-1'}`}/>
+                        </button>
+                    </div>
+
                     {/* Switch: Pedir Seña (Este es el que ya tenías) */}
                     <div className="flex items-center justify-between pt-1">
                         <span className="text-sm font-medium text-zinc-700">Solicitar Seña/Depósito</span>

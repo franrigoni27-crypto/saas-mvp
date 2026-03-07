@@ -28,7 +28,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   // --- ESTADO WIZARD (AGENDAMIENTO) ---
   const [bookingStep, setBookingStep] = useState(1);
   const [bookingData, setBookingData] = useState<{
-  service: any | null; // Cambiamos string por el objeto completo o null
+  service: any[]; // Cambiamos string por el objeto completo o null
   date: string;
   time: string;
   worker: any | null;
@@ -41,7 +41,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
   clientLocalNumber: string;
   
 }>({
-  service: null, 
+  service: [], 
   date: "", 
   time: "", 
   clientName: "", 
@@ -184,16 +184,26 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         return;
     }
 
-    if (bookingData.service?.isPromo && bookingData.service?.promoEndDate) {
-        const selectedDate = new Date(`${dateStr}T00:00:00`);
-        const limitDate = new Date(`${bookingData.service.promoEndDate}T23:59:59`);
-        
-        if (selectedDate > limitDate) {
-            alert(`Esta promoción solo es válida para turnos hasta el ${limitDate.toLocaleDateString('es-AR')}. Por favor elige una fecha anterior.`);
-            setBookingData(prev => ({ ...prev, date: "" })); 
-            setBusySlots([]);
-            return;
+    const selectedDate = new Date(`${dateStr}T00:00:00`);
+
+    // Buscamos si dentro del arreglo de servicios hay alguna promo que venza antes de la fecha elegida
+    const invalidPromo = bookingData.service.find(s => {
+        if (s.isPromo && s.promoEndDate) {
+            const limitDate = new Date(`${s.promoEndDate}T23:59:59`);
+            return selectedDate > limitDate;
         }
+        return false;
+    });
+
+    // Si encontramos un servicio promocional inválido para esa fecha, bloqueamos la selección
+    if (invalidPromo) {
+        const limitDate = new Date(`${invalidPromo.promoEndDate}T23:59:59`);
+        const nombrePromo = invalidPromo.name || invalidPromo.titulo;
+        
+        alert(`La promoción "${nombrePromo}" solo es válida para turnos hasta el ${limitDate.toLocaleDateString('es-AR')}. Por favor elige una fecha anterior o quita este servicio de tu selección.`);
+        setBookingData(prev => ({ ...prev, date: "" })); 
+        setBusySlots([]);
+        return;
     }
 
     // Flujo normal
@@ -237,7 +247,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     }
 
     const slots = [];
-    const serviceDuration = bookingData.service?.duration || bookingData.service?.duracion || 60; 
+    const serviceDuration = bookingData.service.reduce((total, s) => total + (Number(s.duration || s.duracion) || 60), 0); 
     
     const INTERVAL_STEP = 30;
 
@@ -322,19 +332,22 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
     setEnviando(true);
     
     // CORRECCIÓN 1: Leemos duración de ambos formatos (duration o duracion)
-    const serviceDuration = bookingData.service?.duration || bookingData.service?.duracion || 60;
+    const serviceDuration = bookingData.service.reduce((total, s) => total + (Number(s.duration || s.duracion) || 60), 0);
+    const serviceName = bookingData.service.map(s => s.name || s.titulo).join(" + ");
+    const totalPrice = bookingData.service.reduce((total, s) => total + (Number(s.price || s.precio) || 0), 0);
+    
     
     const slotStart = new Date(`${bookingData.date}T${bookingData.time}:00`);
     const slotEnd = new Date(slotStart.getTime() + serviceDuration * 60000);
 
     // CORRECCIÓN 2: Leemos el nombre de ambos formatos (name o titulo)
-    const serviceName = bookingData.service?.name || bookingData.service?.titulo || "Servicio Agendado";
+    
 
     const numeroArmado = `+549${bookingData.clientAreaCode}${bookingData.clientLocalNumber}`;
 
     const payload = {
         service: serviceName, 
-        precio: bookingData.service?.price || bookingData.service?.precio || 0, // <--- NUEVO: Enviamos el precio
+        precio: totalPrice, // <--- NUEVO: Enviamos el precio
         date: bookingData.date,
         time: bookingData.time,
         clientName: bookingData.clientName,
@@ -357,7 +370,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
         if ((res as any).eventLink) setEventLink((res as any).eventLink); 
         setMostrarGracias(true);
         setBookingStep(1);
-        setBookingData({ service: null, date: "", time: "", clientName: "", clientPhone: "", clientEmail: "", worker: null, message: "", images: [],clientAreaCode: "", clientLocalNumber: "" });
+        setBookingData({ service: [], date: "", time: "", clientName: "", clientPhone: "", clientEmail: "", worker: null, message: "", images: [],clientAreaCode: "", clientLocalNumber: "" });
     } else {
         alert("Error: " + res.error);
     }
@@ -1115,80 +1128,76 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
             </div>
             {/* PASO 1: SELECCIONAR SERVICIO (CORREGIDO) */}
             {bookingStep === 1 && (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    <p className="font-bold text-zinc-700 mb-2">Selecciona un servicio:</p>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pb-4">
+                    <p className="font-bold text-zinc-700 mb-2">Selecciona los servicios:</p>
                     
-                    {/* FUSIONAMOS SERVICIOS + PROMOS */}
                     {(() => {
-                        const allServices = [
-                            ...(config.servicios?.items || []), 
-                            ...(negocio.config_web?.services || [])
-                        ];
-                        
-                        if (allServices.length === 0) {
-                            return <p className="text-center text-zinc-400 text-sm py-4">No hay servicios configurados.</p>;
-                        }
+                        const allServices = [...(config.servicios?.items || []), ...(negocio.config_web?.services || [])];
+                        const isMultiSelect = config.booking?.allowMultipleServices;
+
+                        if (allServices.length === 0) return <p className="text-center text-zinc-400 text-sm py-4">No hay servicios configurados.</p>;
 
                         return allServices.map((item: any, i: number) => {
-                            // LÓGICA DE PROMO
                             let isPromo = item.isPromo && item.promoEndDate;
+                            if (isPromo && new Date(item.promoEndDate + 'T23:59:59') < new Date()) isPromo = false; 
 
-                            // Si la promo expiró, vuelve a ser un servicio normal en lugar de desaparecer
-                            if (isPromo && new Date(item.promoEndDate + 'T23:59:59') < new Date()) {
-                                isPromo = false; 
-                            }
-
-                            // Normalizar datos
                             const titulo = item.name || item.titulo;
                             const precio = item.price || item.precio;
-                            const desc = item.description || item.desc;
                             const duracion = item.duration || item.duracion || 60;
-
+                            
+                            // Comprobar si está seleccionado
+                            const isSelected = bookingData.service.some(s => (s.name || s.titulo) === titulo);
 
                             return (
                                 <button 
                                     key={item.id || i}
                                     onClick={() => { 
-                                        setBookingData({...bookingData, service: item}); 
-                                        setBookingStep(2); 
+                                        if (!isMultiSelect) {
+                                            setBookingData({...bookingData, service: [item]}); 
+                                            setBookingStep(2); 
+                                            return;
+                                        }
+                                        // Toggle para múltiple
+                                        if (isSelected) {
+                                            setBookingData({...bookingData, service: bookingData.service.filter(s => (s.name || s.titulo) !== titulo)});
+                                        } else {
+                                            setBookingData({...bookingData, service: [...bookingData.service, item]});
+                                        }
                                     }} 
                                     className={`w-full p-4 border rounded-xl text-left transition-all group relative overflow-hidden
-                                        ${isPromo 
-                                            ? 'bg-pink-50 border-pink-200 hover:border-pink-400 hover:bg-pink-100' 
-                                            : 'bg-white border-zinc-200 hover:bg-indigo-50 hover:border-indigo-500'
+                                        ${isSelected ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-200' : 
+                                            isPromo ? 'bg-pink-50 border-pink-200 hover:border-pink-400' : 'bg-white border-zinc-200 hover:border-indigo-300'
                                         }
                                     `}
                                 >
-                                    {isPromo && (
-                                        <div className="absolute top-0 right-0 bg-pink-500 text-white text-[9px] px-2 py-0.5 font-bold uppercase rounded-bl-lg">
-                                            Promo
+                                    {isSelected && (
+                                        <div className="absolute top-3 right-3 text-indigo-600">
+                                            <CheckCircle size={20} className="fill-current text-white bg-indigo-600 rounded-full" />
                                         </div>
                                     )}
-
-                                    <div className="flex justify-between items-center w-full">
-                                        <span className={`font-bold ${isPromo ? 'text-pink-900' : 'text-zinc-900 group-hover:text-indigo-700'}`}>
-                                            {titulo}
-                                        </span>
-                                        {precio && (
-                                            <span className={`font-semibold px-2 py-1 rounded text-sm 
-                                                ${isPromo 
-                                                    ? 'bg-pink-200 text-pink-800' 
-                                                    : 'bg-zinc-100 text-zinc-900 group-hover:bg-indigo-100 group-hover:text-indigo-700'
-                                                }`}>
-                                                {typeof precio === 'number' || !isNaN(Number(precio)) ? `$${precio}` : precio}
-                                            </span>
-                                        )}
+                                    <div className="flex justify-between items-center w-full pr-8">
+                                        <span className="font-bold text-zinc-900">{titulo}</span>
+                                        {precio && <span className="font-semibold text-sm">${precio}</span>}
                                     </div>
-                                    <div className="flex justify-between items-center mt-1">
-                                        <span className="text-xs text-zinc-500 truncate max-w-[70%]">{desc}</span>
-                                        <span className={`text-xs font-bold flex items-center gap-1 ${isPromo ? 'text-pink-400' : 'text-zinc-400'}`}>
-                                            <Clock size={12}/> {duracion} min
-                                        </span>
+                                    <div className="flex items-center gap-1 mt-1 text-xs text-zinc-500 font-bold">
+                                        <Clock size={12}/> {duracion} min
                                     </div>
                                 </button>
                             );
                         });
                     })()}
+
+                    {/* Botón de Continuar (Solo aparece si es Multi-Servicio y hay algo seleccionado) */}
+                    {config.booking?.allowMultipleServices && bookingData.service.length > 0 && (
+                        <div className="sticky bottom-0 bg-white/90 backdrop-blur pt-2 mt-4">
+                            <button 
+                                onClick={() => setBookingStep(2)} 
+                                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Continuar ({bookingData.service.length} seleccionados)
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
             {bookingStep === 2 && (
@@ -1199,12 +1208,15 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                     {(() => {
                         // 1. FILTRAMOS EL EQUIPO SEGÚN EL SERVICIO SELECCIONADO
                         const allowedWorkers = (config.equipo?.items || []).filter((worker: any) => {
-                            const requiredIds = bookingData.service?.workerIds;
-                            // Si el servicio no tiene restricciones, pasan todos
-                            if (!requiredIds || requiredIds.length === 0) return true;
-                            // Si tiene restricciones, el ID del trabajador debe estar en la lista
-                            return requiredIds.includes(worker.id);
+                            // El trabajador debe cumplir con los requerimientos de TODOS los servicios elegidos
+                            return bookingData.service.every((srv: any) => {
+                                const requiredIds = srv.workerIds;
+                                if (!requiredIds || requiredIds.length === 0) return true;
+                                return requiredIds.includes(worker.id);
+                            });
                         });
+
+                        const hasRestrictions = bookingData.service.some((srv: any) => srv.workerIds && srv.workerIds.length > 0);
 
                         // 2. RENDERIZAMOS SI HAY TRABAJADORES PERMITIDOS
                         if (config.equipo?.mostrar && allowedWorkers.length > 0) {
@@ -1212,7 +1224,7 @@ export default function LandingCliente({ initialData }: { initialData: any }) {
                                 <div className="grid gap-3">
                                     
                                     {/* Mostrar "Cualquiera" SOLO si todos pueden hacer el servicio (sin restricciones) */}
-                                    {(!bookingData.service?.workerIds || bookingData.service?.workerIds.length === 0) && (
+                                    {(!hasRestrictions) && (
                                         <button 
                                             onClick={() => { setBookingData({...bookingData, worker: null}); setBookingStep(3); }}
                                             className="p-4 border border-zinc-200 rounded-xl text-left hover:bg-zinc-50 flex items-center gap-3"
